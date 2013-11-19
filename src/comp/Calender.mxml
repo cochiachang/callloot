@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%" creationComplete="init()">
+
+	<mx:Script>
+		<![CDATA[
+			import comp.*;
+			
+			import model.event.ItemResultEvent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.controls.Menu;
+			import mx.events.CalendarLayoutChangeEvent;
+			import mx.events.DragEvent;
+			import mx.events.ListEvent;
+			import mx.events.MenuEvent;
+			import mx.events.TreeEvent;
+			import mx.formatters.DateFormatter;
+			import mx.managers.PopUpManager;
+			import mx.rpc.events.ResultEvent;
+			import mx.utils.ObjectProxy;
+			
+			import proxy.ConnectionProxy;
+			[Bindable]
+			public var memberInfo:Object;
+			private var level:Array = ["一般會員","管理員","非副本會員"];
+			[Bindable]
+			public var itemList:ArrayCollection;
+			[Bindable]
+			public var wishList:ArrayCollection;
+			[Bindable]
+			public var wishList2:ArrayCollection;
+			private var tmp:SharedObject;
+			[Bindable]
+			private var memberStatus:ArrayCollection
+			private static const filePath:String = "haveOnLeave.php";
+			private function InitDateChooser(event:Event):void{
+				var arrMonth:Array=["一月","二月","三月","四月","五月",                 
+							"六月","七月","八月","九月","十月","十一月","十二月",];                 
+				var arrWeek:Array=["日","一","二",                 
+							"三","四","五","六",];                 
+				event.currentTarget.monthNames=arrMonth;                 
+				event.currentTarget.dayNames=arrWeek;             
+			} 
+			private function init():void{
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.COMMON_EVENT_RESULT,onLeaveResultHandler);
+				datetext2.text="今日";
+				datetext1.text="今日";
+				theSameThing();
+				
+				if(memberInfo.level == 1){
+					ConnectionProxy.getInstances().addEventListener(ItemResultEvent.MEMBER_COMMON_LIST_EVENT,getMemberList);
+					ConnectionProxy.getInstances().getMemberList();
+				}
+			}
+			private function getMemberList(e:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.MEMBER_COMMON_LIST_EVENT,getMemberList);
+				member_list.dataProvider = e.data;
+				member_list2.dataProvider = e.data;
+				var num:int = (e.data as ArrayCollection).length
+				for(var i:int=0;i<num;i++){
+					if(e.data[i].data == memberInfo.id){
+						member_list.selectedIndex = i;
+						member_list2.selectedIndex = i;
+						break;
+					}
+				}
+			}
+			private function bossDropItemHandler(event:ResultEvent):void{
+				if(event.result.bossDropList.item is ObjectProxy){
+					itemList = new ArrayCollection();
+					itemList.addItem(event.result.bossDropList.item);
+				}else{
+					itemList = event.result.bossDropList.item as ArrayCollection;
+				}
+			}
+			private function onChangeDate(event:CalendarLayoutChangeEvent):void{
+				datetext2.text=(event.currentTarget.selectedDate.getMonth() + 1) +
+					"月" + (event.currentTarget.selectedDate.getDate()+"日");
+				datetext1.text=(event.currentTarget.selectedDate.getMonth() + 1) +
+					"月" + (event.currentTarget.selectedDate.getDate()+"日");
+				//取得今天請假狀況
+				var dateFormatter:DateFormatter = new DateFormatter();
+				dateFormatter.formatString = "YYYYMMDD";
+				var obj:Object = new Object();
+				obj.type = 'getOnLeaveStatus';
+				obj.time = dateFormatter.format(myDateChooser.selectedDate);
+				ConnectionProxy.getInstances().commonEvent(filePath,obj);
+			}
+			private function theSameThing():void{
+				//取得今天請假狀況
+				var dateFormatter:DateFormatter = new DateFormatter();
+				dateFormatter.formatString = "YYYYMMDD";
+				var obj:Object = new Object();
+				obj.type = 'getOnLeaveStatus';
+				obj.time = dateFormatter.format(new Date());
+				ConnectionProxy.getInstances().commonEvent(filePath,obj);
+				//取得該會員請假列表
+				var obj2:Object = new Object();
+				obj2.type = 'getMyRecord';
+				obj2.member_id = memberInfo.id;
+				ConnectionProxy.getInstances().commonEvent(filePath,obj2);
+			}
+			private function changeMemberRecord():void{
+				var obj2:Object = new Object();
+				obj2.type = 'getMyRecord';
+				obj2.member_id = member_list2.selectedItem.data;
+				ConnectionProxy.getInstances().commonEvent(filePath,obj2);
+			}
+			//請假相關結果操作
+			private function onLeaveResultHandler(event:ItemResultEvent):void{
+				try{
+					switch(event.result.result.type){
+						case 'getOnLeaveStatus':
+							onWork.text = event.result.result.onWork;
+							onLeave.text = event.result.result.onLeave;
+							pie.dataProvider = event.result.result.careerStatus.data
+							if(event.result.result.onLeaveStatus!=null)
+								onLeaveStatus.dataProvider = event.result.result.onLeaveStatus.data
+							summaryText.htmlText = event.result.result.summaryText
+							break;
+						case 'insertRecord':
+							if(event.result.result =="success"){
+								theSameThing()
+								
+								Alert.show("新增請假資料成功!");
+								description.text = '';
+							}else{
+								Alert.show("您今天已經請過假了!");
+							}
+							break;
+						case 'getMyRecord':
+							if(event.result.result.data as ObjectProxy){
+								memberStatus = new ArrayCollection();
+								memberStatus.addItem(event.result.result.data);
+							}else{
+								memberStatus = event.result.result.data
+							}
+							break;
+						case 'deleteRecord':
+							if(event.result.result =="success"){
+								theSameThing()
+								Alert.show("刪除請假資料成功!");
+								description.text = '';
+							}else{
+								Alert.show("無法刪除此筆紀錄!");
+							}
+							break;
+					}
+				}catch(e:Error){
+					
+				}
+			}
+			//送出申請相關操作
+			private function onButtonClick(event:Event):void{
+				if(start_time.selectedDate<=end_time.selectedDate){
+					var dateFormatter:DateFormatter = new DateFormatter();
+					dateFormatter.formatString = "YYYYMMDD";
+					var obj:Object = new Object();
+					obj.type = 'insertRecord';
+					if(memberInfo.level == 1){
+						obj.member_id = member_list.selectedItem.data;
+					}else{
+						obj.member_id = memberInfo.id
+					}
+					obj.start_time = dateFormatter.format(start_time.selectedDate);
+					obj.end_time = dateFormatter.format(end_time.selectedDate);
+					obj.leavetype = leavetype.selectedLabel;
+					obj.description = description.text;
+					ConnectionProxy.getInstances().commonEvent(filePath,obj);
+				}else{
+					Alert.show('開始日期不得大於結束日期');
+				}
+			}
+			//按下修假清單
+			private function onChangeSelected(event:ListEvent):void{
+				myRecordDetail.text = myRecordDataGrid.selectedItem.description
+			}
+			private function onClickDeleteBtn():void{
+				var obj:Object = new Object();
+				obj.type = 'deleteRecord';
+				if(memberInfo.level == 1){
+					obj.member_id = member_list2.selectedItem.data
+				}else{
+					obj.member_id = memberInfo.id;
+				}
+				obj.start_time = myRecordDataGrid.selectedItem.start_time2;
+				obj.end_time = myRecordDataGrid.selectedItem.end_time2;
+				
+				ConnectionProxy.getInstances().commonEvent(filePath,obj);
+			}
+		]]>
+	</mx:Script>
+	<mx:SolidColor id="sc1" color="#F58CBA"/>
+    <mx:SolidColor id="sc2" color="#9482CA"/>
+    <mx:SolidColor id="sc3" color="#FFFFFF"/>
+    <mx:SolidColor id="sc4" color="#C79C6E"/>
+    <mx:SolidColor id="sc5" color="#ABD473"/>
+    <mx:SolidColor id="sc6" color="#2459FF"/>
+    <mx:SolidColor id="sc7" color="#FFF569"/>
+    <mx:SolidColor id="sc8" color="#69CCF0"/>
+    <mx:SolidColor id="sc9" color="#FF7D0A"/>
+    <mx:SolidColor id="sc10" color="#C2223C"/>
+
+	<mx:HBox x="0" y="0" height="100%" width="100%" verticalGap="0" id="mainCanvas">
+		<mx:VBox height="100%" width="20%">
+			<mx:DateChooser creationComplete="InitDateChooser(event)" id="myDateChooser" width="100%" height="158" showToday="true" change="onChangeDate(event)"/>
+			<mx:HBox width="100%">
+				<mx:Text text="《" fontSize="12"/>
+				<mx:Text text="Text" fontSize="12" id="datetext2"/>
+				<mx:Label text="出席狀況》" fontSize="12"/>
+			</mx:HBox>
+			<mx:HBox width="100%">
+				<mx:Label text="總出席人數：" fontSize="12"/>
+				<mx:Label text="0" color="red" id="onWork"/>
+				<mx:Label text="人"/>
+			</mx:HBox>
+			<mx:HBox width="100%">
+				<mx:Label text="總請假人數：" fontSize="12"/>
+				<mx:Label text="0" color="red" id="onLeave"/>
+				<mx:Label text="人"/>
+			</mx:HBox>
+			<mx:Text text="今日出席狀況" fontSize="12"/>
+			<mx:PieChart id="pie" showDataTips="true" width="100%" height="120" fontSize="12">
+	            <mx:series>
+	                <mx:PieSeries 
+	                    field="amount" 
+	                    nameField="career"
+	                    fills="{[sc1, sc2, sc3, sc4, sc5, sc6,sc7,sc8,sc9,sc10]}"
+	                />
+	            </mx:series>
+        	</mx:PieChart>
+			<!-- borderThickness="0" borderStyle="none" cornerRadius="5"-->
+			<mx:TextArea id="summaryText" width="100%" height="100%" editable="false" wordWrap="true"/>
+		</mx:VBox>
+		<mx:VBox height="100%" width="50%">
+			<mx:HBox width="100%">
+					<mx:Text text="《" fontSize="12"/>
+					<mx:Text text="Text" fontSize="12" id="datetext1"/>
+					<mx:Label text="請假人員》" fontSize="12"/>
+			</mx:HBox>
+			<mx:DataGrid width="100%" height="100%" id="onLeaveStatus">
+				<mx:columns>
+					<mx:DataGridColumn headerText="請假者" dataField="name" width="50"/>
+					<mx:DataGridColumn headerText="假別" dataField="type" width="70"/>
+					<mx:DataGridColumn headerText="詳細狀況" dataField="description" wordWrap="true">
+					</mx:DataGridColumn>
+					<mx:DataGridColumn headerText="申請時間" dataField="applytime" width="150"/>
+				</mx:columns>
+			</mx:DataGrid>
+		</mx:VBox>
+		<mx:VBox height="100%" width="30%">
+			<mx:ToggleButtonBar dataProvider="{viewStack}" toggleOnClick="true"/>
+			<mx:ViewStack id="viewStack" width="100%" height="100%" creationPolicy="all">
+		        <mx:VBox height="100%" width="100%" label="《我要請假》">
+					<mx:HBox width="100%">
+						<mx:Text text="請假類別：" fontSize="12"/>
+						<mx:ComboBox id="leavetype" dataProvider="[晚到,請假]" fontSize="12"></mx:ComboBox>
+					</mx:HBox>
+					<mx:HBox width="100%">
+						<mx:Label text="請假日期：從" fontSize="12"/>
+						<mx:DateField id="start_time" creationComplete="InitDateChooser(event)"/>
+						<mx:Label text="到" fontSize="12"/>
+						<mx:DateField id="end_time" creationComplete="InitDateChooser(event)"/>
+					</mx:HBox>
+					<mx:HBox width="100%" includeInLayout="{(memberInfo.level == 1)}" visible="{(memberInfo.level == 1)}">
+						<mx:Label fontSize="12" text="請假會員："/>
+						<mx:ComboBox id="member_list"/>
+					</mx:HBox>
+					<mx:Label text="詳細狀況：" fontSize="12"/>
+					<mx:TextArea id="description" width="100%" height="100%"/>
+					<mx:Button label="送出" fontSize="12" click="onButtonClick(event)"/>
+				</mx:VBox>
+				<mx:VBox height="100%" width="100%" label="《管理紀錄》">
+					<mx:HBox width="100%" includeInLayout="{(memberInfo.level == 1)}" visible="{(memberInfo.level == 1)}">
+						<mx:Label fontSize="12" text="選擇會員："/>
+						<mx:ComboBox id="member_list2" change="changeMemberRecord()"/>
+					</mx:HBox>
+					<mx:DataGrid width="100%" height="50%" id="myRecordDataGrid" dataProvider="{memberStatus}" itemClick="onChangeSelected(event)">
+						<mx:columns>
+							<mx:DataGridColumn headerText="請假開始日" dataField="start_time"/>
+							<mx:DataGridColumn headerText="請假結束日" dataField="end_time"/>
+							<mx:DataGridColumn headerText="假別" dataField="type" width="70"/>
+							<mx:DataGridColumn headerText="申請時間" dataField="applytime" width="150"/>
+						</mx:columns>
+					</mx:DataGrid>
+					<mx:VBox width="100%" height="50%" visible="{(myRecordDataGrid.selectedItem != null)}">
+						<mx:TextArea wordWrap="true" id="myRecordDetail" width="100%" height="100%" editable="false"/>
+						<mx:Button label="刪除此筆紀錄" click="onClickDeleteBtn()"/>
+					</mx:VBox>
+					
+				</mx:VBox>
+			</mx:ViewStack>
+		</mx:VBox>
+	</mx:HBox>
+</mx:Canvas>

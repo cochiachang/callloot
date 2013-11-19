@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%" creationComplete="init()">
+	<mx:XML format="e4x" id="myMenuData">
+        <root>
+            <menuitem label="刪除物品"/>
+        </root>
+    </mx:XML>
+	<mx:Script>
+		<![CDATA[
+			import comp.*;
+			import comp.pupUpWindows.ItemTip;
+			
+			import flash.net.navigateToURL;
+			
+			import model.event.ItemResultEvent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.controls.Menu;
+			import mx.events.DragEvent;
+			import mx.events.ListEvent;
+			import mx.events.MenuEvent;
+			import mx.events.TreeEvent;
+			import mx.managers.PopUpManager;
+			import mx.rpc.events.ResultEvent;
+			import mx.utils.ObjectProxy;
+			
+			import proxy.ConnectionProxy;
+			[Bindable]
+			public var memberInfo:Object;
+			[Bindable]
+			private var level:Array = ["一般會員","管理員","非副本會員"];
+			[Bindable]
+			public var list:ArrayCollection;
+			[Bindable]
+			public var itemList:ArrayCollection;
+			[Bindable]
+			public var wishList:ArrayCollection;
+			[Bindable]
+			public var wishList2:ArrayCollection;
+			private var tmp:SharedObject;
+			private function init():void{
+				PopUpManager.addPopUp(item,this);
+				item.visible = false;
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_MEMBER_WISH_LIST_RESULT,searchWishListHandler);
+				ConnectionProxy.getInstances().getPersonWishList(memberInfo.id);
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_RAID_AREA_LIST_RESULT,getAreaXmlHandler);
+				ConnectionProxy.getInstances().getRaidAreaList();
+			}
+			private function getAreaXmlHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_MEMBER_ITEMLIST_RESULT,getAreaXmlHandler);
+				list = event.data as ArrayCollection;
+			}
+			private function treeItemClick(evt:ListEvent):void{
+				var item:Object = evt.currentTarget.selectedItem;
+				if(item["boss_id"] != null){
+					ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_BOSS_ITEM_LIST_RESULT,bossDropItemHandler);
+					ConnectionProxy.getInstances().getBossItemList(item["id"]);
+				}
+			}
+			private function bossDropItemHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_BOSS_ITEM_LIST_RESULT,bossDropItemHandler);
+				itemList = event.data as ArrayCollection;
+			}
+			private function searchWishListHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_MEMBER_WISH_LIST_RESULT,searchWishListHandler);
+				wishList = event.data.wish1;
+				wishList2 = event.data.wish2;
+			}
+			private function dragDropHandler(event:DragEvent):void{
+				
+			}
+			private var tmpSelectObj:int;
+			private function createAndShow(event:ListEvent):void {
+				if(memberInfo.permit==0){
+					var myMenu:Menu = Menu.createMenu(null, myMenuData, false);
+					if(myTabNavigator.selectedIndex == 0){
+						tmpSelectObj = wishListGrid.selectedIndex;
+					}else{
+						tmpSelectObj = wishListGrid2.selectedIndex;
+					}
+					myMenu.labelField="@label";
+					myMenu.show(stage.mouseX+10, stage.mouseY+8);
+					myMenu.addEventListener(MouseEvent.CLICK,myMenuHandler);
+				}
+            }
+            private function myMenuHandler(event:MouseEvent):void{
+            	if(myTabNavigator.selectedIndex == 0){
+            		wishList.removeItemAt(tmpSelectObj);
+            	}else{
+            		wishList2.removeItemAt(tmpSelectObj);
+            	}
+            }
+            private var searchObj:Object;
+            private function getItemInfo(event:ListEvent):void{
+            	if(searchObj==null){
+					searchObj = new Object();
+            		searchObj.itemId = String(event.itemRenderer.data.item_id);
+					searchObj.name = String(event.itemRenderer.data.name);
+					item.visible = true;
+					PopUpManager.centerPopUp(item);
+					item.title = searchObj.name;
+					item.iconPic = searchObj.icon;
+					item.currentState = "loading";
+					ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_ITEMTIP_RESULT,getItemXmlHandler);
+					ConnectionProxy.getInstances().getItemTipList(searchObj.itemId);
+            	}
+			}
+			private var item:ItemTip = new ItemTip();
+			private function getItemXmlHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_ITEMTIP_RESULT,getItemXmlHandler);
+				var info:String = event.data.toString();
+				item.currentState = "complete";
+				item.itemtipMessage = info;
+				searchObj = null;
+			}
+			private function saveWishList():void{
+				var obj:Object = new Object();
+				var itemArray:Array = new Array();
+				for(var tmp:Object in wishList){
+					itemArray.push(wishList[tmp]["item_id"]);
+				}
+				var itemArray2:Array = new Array();
+				for(tmp in wishList2){
+					itemArray2.push(wishList2[tmp]["item_id"]);
+				}
+				obj.user_id = memberInfo.id;
+				obj.item = itemArray.toString();
+				obj.item2 = itemArray2.toString();
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.COMMON_EVENT_RESULT,saveWishItemHandler);
+				ConnectionProxy.getInstances().commonEvent('saveWishItem.php',obj);
+			}
+			private function saveWishItemHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.COMMON_EVENT_RESULT,saveWishItemHandler);
+				if(event.data.result == "success"){
+					Alert.show("您的願望清單已儲存成功!");
+				}else{
+					Alert.show("抱歉!現在管理員設定限制，因此您無法改變您的願望清單");
+				}
+			}
+			private function enterModify():void{
+				this.currentState = "modify";
+				message2.text = "";
+			}
+			private function modifyPassword():void{
+				if(String(memberInfo.password) == String(old_password.text)){
+					if(new_password.text == new_password2.text){
+						memberInfo.password = new_password.text;
+						ConnectionProxy.getInstances().addEventListener(ItemResultEvent.MODIFY_PASSWORD_RESULT,modifyPasswordhttpHandler);
+						ConnectionProxy.getInstances().changePassword(memberInfo.id,memberInfo.password);
+					}else{
+						message2.text = "您輸入的新密碼兩次內容並不相同";
+					}
+				}else{
+					message2.text = "您輸入的舊密碼錯誤";
+				}
+			}
+			private function modifyPasswordhttpHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.MODIFY_PASSWORD_RESULT,modifyPasswordhttpHandler);
+				new_password.text = '';
+				new_password2.text = '';
+				old_password.text = ''
+				this.currentState = "";
+				Alert.show(event.result.toString());
+			}
+			
+			private function lockOrUnlock():void{
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.LOCK_OR_UNLOCK_PROCESS_RESULT,resultlockOrUnlockHandler);
+				ConnectionProxy.getInstances().lockOrUnlockProcess(memberInfo.id);
+			}
+			private function resultlockOrUnlockHandler(event:ItemResultEvent):void{
+				if(event.data == '1'){
+					Alert.show("已鎖定不能再修改許願表");
+				}else{
+					Alert.show("已解除鎖定許願表");
+				}
+			}
+		]]>
+	</mx:Script>
+	<mx:states>
+		<mx:State name="modify">
+			<mx:SetProperty name="visible" target="{mainCanvas}" value="false"/>
+			<mx:AddChild>
+				<mx:VBox styleName="popupWindowStyle" width="350" height="220" horizontalAlign="center" verticalAlign="middle" horizontalCenter="0" verticalCenter="0" verticalGap="10" backgroundColor="#FFFFFF">
+					<mx:HBox width="90%"><mx:Label text="請輸入登入帳密："/></mx:HBox>
+					<mx:HBox width="90%">
+						<mx:Label text="舊密碼"/>
+						<mx:TextInput width="100%" id="old_password" displayAsPassword="true" color="#4E4E4E" maxChars="20"/>
+					</mx:HBox>
+					<mx:HBox width="90%">
+						<mx:Label text="新密碼"/>
+						<mx:TextInput width="100%" id="new_password" displayAsPassword="true" color="#4E4E4E" maxChars="20"/>
+					</mx:HBox>
+					<mx:HBox width="90%">
+						<mx:Label text="確認密碼"/>
+						<mx:TextInput width="100%" id="new_password2" displayAsPassword="true" color="#4E4E4E" maxChars="20"/>
+					</mx:HBox>
+					<mx:HBox width="90%" horizontalAlign="right">
+						<mx:Label width="100%" id="message2" color="#FF0000" textAlign="center"/>
+						<mx:Button label="確定" click="modifyPassword()" color="#4E4E4E"/>
+						<mx:Button label="取消" click="{this.currentState=''}" color="#4E4E4E"/>
+					</mx:HBox>
+				</mx:VBox>
+			</mx:AddChild>
+		</mx:State>
+	</mx:states>
+	<mx:VBox x="0" y="0" height="100%" width="100%" verticalGap="0" id="mainCanvas">
+		<mx:HBox width="100%" id="myMenuHBox">
+			<mx:Label width="100%" textAlign="center" id="topMessage" styleName="titleLabel" text="{memberInfo.name+'您好!您登入的身份為『'+level[memberInfo.level]+'』!雙擊物品名稱可看到物品詳細資料!'}"/>
+			<mx:Button label="鎖定/解鎖修改" id="lockOrUnlockBtn" click="lockOrUnlock()" visible="{(memberInfo.level == 1)}"/>
+			<mx:Button label="儲存願望清單" click="saveWishList()"/>
+			<mx:Button label="修改密碼" click="enterModify()"/>
+		</mx:HBox>
+		<mx:HBox width="100%" height="100%" horizontalGap="0" id="myMainHBox">
+			<mx:Tree height="100%" width="200" dataProvider="{list}" itemClick="treeItemClick(event)" id="tree"></mx:Tree>
+			<mx:VDividedBox width="100%" height="100%" x="0" y="0">
+				<mx:DataGrid id="itemListGrid" dragEnabled="true" width="100%" height="40%" dataProvider="{itemList}" doubleClickEnabled="true" itemDoubleClick="getItemInfo(event)">
+					<mx:columns>
+						<mx:DataGridColumn headerText="" dataField="icon" itemRenderer="comp.renderer.DataGridImage" width="21"/>
+						<mx:DataGridColumn headerText="物品名稱" dataField="name"/>
+						<mx:DataGridColumn headerText="類型" dataField="type" width="80"/>
+						<mx:DataGridColumn headerText="部位" dataField="part" width="80"/>
+						<mx:DataGridColumn headerText="iLv" dataField="level" width="50"/>
+					</mx:columns>
+				</mx:DataGrid>
+				<mx:VBox width="100%" verticalGap="0" height="60%">
+					<mx:Label width="100%" textAlign="center" styleName="titleLabel" htmlText="{(memberInfo.permit == '0'||memberInfo.permit == 0) ? '請將上面的物品拖曳至下面的願望清單，由上到下代表需求優先順序『大 → 小』':'很抱歉!管理員設定現在這個時段無法儲存願望清單!'}"/>
+					<mx:TabNavigator width="100%" height="100%" id="myTabNavigator">
+						<mx:Canvas label="主要天賦需求清單" width="100%" height="100%">
+							<mx:DataGrid sortableColumns="false" id="wishListGrid" dragEnabled="{memberInfo.permit==0}" dropEnabled="{memberInfo.permit==0}" dragMoveEnabled="{memberInfo.permit==0}" dragDrop="dragDropHandler(event)" 
+								 itemClick="createAndShow(event)" width="100%" height="100%" dataProvider="{wishList}" doubleClickEnabled="true" itemDoubleClick="getItemInfo(event)">
+								<mx:columns>
+									<mx:DataGridColumn headerText="" dataField="icon" itemRenderer="comp.renderer.DataGridImage" width="21"/>
+									<mx:DataGridColumn headerText="物品名稱" dataField="name"/>
+									<mx:DataGridColumn headerText="類型" dataField="type" width="80"/>
+									<mx:DataGridColumn headerText="部位" dataField="part" width="80"/>
+									<mx:DataGridColumn headerText="iLv" dataField="level" width="50"/>
+								</mx:columns>
+							</mx:DataGrid>
+						</mx:Canvas>
+						<mx:Canvas label="次要天賦需求清單" width="100%" height="100%">
+							<mx:DataGrid sortableColumns="false" id="wishListGrid2" dragEnabled="{memberInfo.permit==0}" dropEnabled="{memberInfo.permit==0}" dragMoveEnabled="{memberInfo.permit==0}" dragDrop="dragDropHandler(event)" 
+								 itemClick="createAndShow(event)" width="100%" height="100%" dataProvider="{wishList2}" doubleClickEnabled="true" itemDoubleClick="getItemInfo(event)">
+								<mx:columns>
+									<mx:DataGridColumn headerText="" dataField="icon" itemRenderer="comp.renderer.DataGridImage" width="21"/>
+									<mx:DataGridColumn headerText="物品名稱" dataField="name"/>
+									<mx:DataGridColumn headerText="類型" dataField="type" width="80"/>
+									<mx:DataGridColumn headerText="部位" dataField="part" width="80"/>
+									<mx:DataGridColumn headerText="iLv" dataField="level" width="50"/>
+								</mx:columns>
+							</mx:DataGrid>
+						</mx:Canvas>
+					</mx:TabNavigator>
+					
+				</mx:VBox>
+			</mx:VDividedBox>
+		</mx:HBox>
+	</mx:VBox>
+</mx:Canvas>

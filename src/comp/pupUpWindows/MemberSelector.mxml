@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:TitleWindow xmlns:mx="http://www.adobe.com/2006/mxml"
+				width="250" height="140" creationComplete="init()" horizontalAlign="center"
+				layout="vertical" verticalAlign="middle">
+	<mx:Script>
+		<![CDATA[
+			import model.event.CommonEvent;
+			import model.event.ItemResultEvent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.utils.ObjectProxy;
+			
+			import proxy.ConnectionProxy;
+			[Bindable]
+			private var memberList:ArrayCollection;
+			[Bindable]
+			public var labelText:String;
+			private function init():void{
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.MEMBER_COMMON_LIST_EVENT,resultHandler);
+				ConnectionProxy.getInstances().getMemberList();
+			}
+			private function resultHandler(event:ItemResultEvent):void{
+				memberList = event.data as ArrayCollection;
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.MEMBER_COMMON_LIST_EVENT,resultHandler);
+			}
+			private function buttonClick():void{
+				this.dispatchEvent(new CommonEvent(CommonEvent.MODIFY_PICKUP_MEMBER_SELECT,myCombobox.selectedItem,true));
+			}
+		]]>
+	</mx:Script>
+	<mx:Label width="100%" text="{labelText}"/>
+	<mx:ComboBox width="100%" id="myCombobox" dataProvider="{memberList}"></mx:ComboBox>
+	<mx:Button label="確定" click="buttonClick()"/>
+</mx:TitleWindow>

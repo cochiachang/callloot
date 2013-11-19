@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%" creationComplete="init()">
+	<mx:Script>
+		<![CDATA[
+			import model.event.ItemResultEvent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.containers.TitleWindow;
+			import mx.events.CloseEvent;
+			import mx.events.FlexEvent;
+			import mx.events.ListEvent;
+			import mx.managers.PopUpManager;
+			import mx.rpc.events.ResultEvent;
+			import mx.utils.ObjectProxy;
+			
+			import proxy.ConnectionProxy;
+			[Bindable]
+			public var list:ArrayCollection;
+			private var titleWin:TitleWindow = new TitleWindow();
+			private var item:MemberWishItem = new MemberWishItem();
+			private var itemPickup:MemberPickupStatus = new MemberPickupStatus();
+			private var itemAttend:MemberAttendStatus = new MemberAttendStatus();
+			private function init():void{
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_RAID_AREA_LIST_RESULT,getAreaXmlHandler);
+				ConnectionProxy.getInstances().getRaidAreaList();
+				PopUpManager.addPopUp(titleWin,this);
+				titleWin.creationPolicy = "all";
+				titleWin.visible = false;
+				titleWin.addChild(item);
+				titleWin.showCloseButton = true;
+				titleWin.addEventListener(CloseEvent.CLOSE,closePopupItem);
+				titleWin.addEventListener(FlexEvent.CREATION_COMPLETE,createComplete);
+				titleWin.width=500;
+				titleWin.height=350;
+			}
+			
+			private function createComplete(e:FlexEvent):void{
+				item.myTab.addChild(itemPickup);
+				itemPickup.label = "曾獲取物品";
+				item.myTab.addChild(itemAttend);
+				itemAttend.label = "出席狀況分析";
+				item.percentWidth = 100;
+				item.percentHeight = 100;
+			}
+			
+			private function closePopupItem(evt:CloseEvent):void{
+				titleWin.visible = false;
+			}
+			private function getAreaXmlHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_MEMBER_ITEMLIST_RESULT,getAreaXmlHandler);
+				list = event.data as ArrayCollection;
+			}
+			private function searchPersonWishList(event:ListEvent):void{
+				var member_id:String = event.currentTarget.selectedItem.id;
+				titleWin.title = event.currentTarget.selectedItem.m_name+"的許願清單及拾取物品";
+				itemAttend.member_id = member_id;
+				itemPickup.getMemberInfo(member_id);
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_MEMBER_WISH_LIST_RESULT,getPersonWishListHandler);
+				ConnectionProxy.getInstances().getPersonWishList(member_id);
+			}
+			private function treeItemClick(evt:ListEvent):void{
+				var item:Object = evt.currentTarget.selectedItem;
+				if(item["boss_id"] != null){
+					resultWishList.dataProvider = null;
+					comboBoxList.enabled = false;
+					comboBoxList.selectedIndex = 0;
+					ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_BOSS_ITEM_LIST_RESULT,getBossItemListHandler);
+					ConnectionProxy.getInstances().getBossItemList(item["id"]);
+				}
+			}
+			
+			private function getBossItemListHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_BOSS_ITEM_LIST_RESULT,getBossItemListHandler);
+				var tmp:ArrayCollection = new ArrayCollection((event.data as ArrayCollection).toArray());
+				tmp.addItemAt({name:"請選擇物品"},0);
+				comboBoxList.dataProvider = tmp;
+				comboBoxList.dropdown.dataProvider = tmp;
+				comboBoxList.dropdown.validateDisplayList();
+				comboBoxList.enabled = true;
+				itemImageMessage.htmlText = '';
+			}
+			private function selectWish(event:ListEvent):void{
+				var obj:Object = event.currentTarget.selectedItem;
+				textMessage.text = "以下為對『"+obj.name+"』有需求的會員名單列表!可雙擊列表觀看詳細資料";
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_WISH_LIST_RESULT,getWishListHandler);
+				ConnectionProxy.getInstances().getWishList(obj);
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_ITEMTIP_RESULT,getItemXmlHandler);
+				ConnectionProxy.getInstances().getItemTipList(obj.item_id);
+				
+			}
+			private function getWishListHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_WISH_LIST_RESULT,getWishListHandler);
+				
+				resultWishList.dataProvider = event.data;
+			}
+			
+			private function getPersonWishListHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_MEMBER_WISH_LIST_RESULT,getPersonWishListHandler);
+				item.wishList = event.data.wish1;
+				item.wishList2 = event.data.wish2;
+				titleWin.visible = true;
+				PopUpManager.centerPopUp(titleWin);
+			}
+			private function getItemXmlHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_ITEMTIP_RESULT,getItemXmlHandler);
+				var info:String = event.data.toString();
+				itemImageMessage.htmlText = info;
+				itemImageMessage.visible = true;
+			}
+			
+		]]>
+	</mx:Script>
+	<mx:HBox x="0" y="0" width="100%" height="100%" id="mainCanvas" horizontalGap="0">
+		<mx:Tree height="100%" width="200" dataProvider="{list}" itemClick="treeItemClick(event)"></mx:Tree>
+		<mx:VBox width="300" horizontalAlign="center" verticalAlign="middle" verticalGap="10" height="100%">
+			<mx:HBox width="100%">
+				<mx:Label text="選擇物品："/>
+				<mx:ComboBox editable="false" change="selectWish(event)" enabled="false" id="comboBoxList" labelField="name" rowCount="10"></mx:ComboBox>
+			</mx:HBox>
+			<mx:HBox width="100%">
+				<mx:Label text="所選物品資訊："/>
+			</mx:HBox>
+			<mx:Text width="100%" id="itemImageMessage" height="100%" visible="true"/>
+		</mx:VBox>
+		<mx:VBox width="100%" height="100%" verticalGap="0">
+			<mx:Label width="100%" id="textMessage" styleName="titleLabel" textAlign="center" fontWeight="bold"/>
+			<mx:HBox width="100%" height="100%" horizontalGap="0">
+				<mx:DataGrid height="100%" width="100%" id="resultWishList" itemDoubleClick="searchPersonWishList(event)" doubleClickEnabled="true">
+					<mx:columns>
+						<mx:DataGridColumn headerText="需求會員" dataField="m_name"/>
+						<mx:DataGridColumn headerText="需求順序" dataField="i_index"/>
+						<mx:DataGridColumn headerText="需求件數" dataField="num"/>
+						<mx:DataGridColumn headerText="需求天賦" dataField="type"/>
+					</mx:columns>
+				</mx:DataGrid>
+			</mx:HBox>
+		</mx:VBox>
+	</mx:HBox>
+</mx:Canvas>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%">
+	<mx:HBox width="100%">
+		<mx:Label text="副本日期："/>
+		<mx:Label width="100%" id="areaDate"/>
+	</mx:HBox>
+	<mx:HBox width="100%">
+		<mx:Text text="副本名稱："/>
+		<mx:Text width="100%" id="areaName"/>
+	</mx:HBox>
+	<mx:HBox width="100%">
+		<mx:Text text="副本描述："/>
+		<mx:Text width="100%" id="areaDescription"/>
+	</mx:HBox>
+	<mx:Label text="出席人員："/>
+	<mx:TextArea id="memberStatus" width="100%" height="175" borderStyle="none"
+				 editable="false" fontSize="12"/>
+	<mx:Label text="物品分配狀況："/>
+	<mx:TextArea id="itemStatus" width="100%" height="100%" borderStyle="none"
+				 editable="false" fontSize="12"/>
+</mx:VBox>

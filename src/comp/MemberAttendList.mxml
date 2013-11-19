@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" creationComplete="init()">
+	<mx:Script>
+		<![CDATA[
+			import comp.pupUpWindows.ItemTip;
+			import comp.pupUpWindows.RaidDetail;
+			
+			import model.event.ItemResultEvent;
+			
+			import mx.containers.TitleWindow;
+			import mx.events.CloseEvent;
+			import mx.events.ListEvent;
+			import mx.managers.PopUpManager;
+			
+			import proxy.ConnectionProxy;
+			private var detail:RaidDetail;
+			private var popup:TitleWindow;
+			[Bindable]
+			private var raid_data:Object;
+			private var isSearch:Boolean = false;
+			private function init():void{
+				detail = new RaidDetail();
+				popup = new TitleWindow();
+				popup.width = 500;
+				popup.height = 500;
+				popup.showCloseButton = true;
+				popup.addEventListener(CloseEvent.CLOSE,closeHandler);
+				popup.visible = false;
+				popup.addChild(detail);
+				PopUpManager.addPopUp(popup,this.parent);
+			}
+			private function closeHandler(event:CloseEvent):void{
+				popup.visible = false;
+			}
+			public function getMemberInfo(id:String):void{
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_MEMBER_ATTEND_RESULT,getMemberInfoHandler);
+				ConnectionProxy.getInstances().getMemberAttendList(id);
+				
+			}
+			private function getMemberInfoHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_MEMBER_ATTEND_RESULT,getMemberInfoHandler);
+				raid_data = event.data;
+			}
+			private function getRaidDetail(eventId:String):void{
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_RAID_DATA_DETAIL_RESULT,getRaidDetailHandler);
+				ConnectionProxy.getInstances().getRaidDetail(eventId);
+			}
+			
+			private function getRaidDetailHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_RAID_DATA_DETAIL_RESULT,getRaidDetailHandler);
+				detail.areaDate.text = event.data.date;
+				detail.areaName.text = event.data.title;
+				detail.areaDescription.text = event.data.description;
+				detail.memberStatus.htmlText = event.data.member;
+				detail.itemStatus.htmlText = event.data.itemList;
+				popup.visible = true;
+				popup.title = event.data.title;
+				PopUpManager.centerPopUp(popup);
+				PopUpManager.bringToFront(popup);
+			}
+			private function itemClickHandler(event:ListEvent):void{
+				getRaidDetail(event.itemRenderer.data.event_sn);
+			}
+		]]>
+	</mx:Script>
+	<mx:DataGrid x="0" y="0" width="100%" height="100%" id="myDataGrid" dataProvider="{raid_data}" doubleClickEnabled="true" itemDoubleClick="itemClickHandler(event)">
+		<mx:columns>
+			<mx:DataGridColumn dataField="title" headerText="副本名稱"/>
+			<mx:DataGridColumn dataField="date" headerText="副本日期"/>
+			<mx:DataGridColumn dataField="status" headerText="參與狀況">
+				<mx:itemRenderer>
+					<mx:Component>
+						<mx:Label>
+							<mx:Script>
+								<![CDATA[
+									private var attendTypeColor:Object = {準時出席:0x000000,晚到:0x5200A0,請假:0x0200A0,補假:0xDC7100,未請假缺席:0xFF0000};
+									override public function set data(value:Object):void{
+										this.text = value.status;
+										this.setStyle("color",attendTypeColor[value.status]);
+										super.data = value;
+									}
+								]]>
+							</mx:Script>
+						</mx:Label>
+					</mx:Component>
+				</mx:itemRenderer>
+			</mx:DataGridColumn>
+		</mx:columns>
+	</mx:DataGrid>
+</mx:Canvas>

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" creationComplete="init()" width="500" height="350">
+	<mx:Script>
+		<![CDATA[
+			import comp.pupUpWindows.ItemTip;
+			
+			import model.event.ItemResultEvent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.events.ListEvent;
+			import mx.managers.PopUpManager;
+			
+			import proxy.ConnectionProxy;
+			public var basePath:String;
+			[Bindable]
+			public var wishList:ArrayCollection;
+			[Bindable]
+			public var wishList2:ArrayCollection;
+			[Bindable]
+			public var iconPic:String;
+			private var isSearch:Boolean = false;
+			private var windows:ItemTip = new ItemTip();
+			private function init():void{
+				windows = new ItemTip();
+				windows.visible = false;
+				PopUpManager.addPopUp(windows,this.parent);
+			}
+			private function closeHandler():void{
+				this.visible = false;
+			}
+			private function doubleClickItem(event:ListEvent):void{
+				if(!isSearch){
+					isSearch = true;
+					windows.visible = true;
+					PopUpManager.centerPopUp(windows);
+					PopUpManager.bringToFront(windows);
+					windows.currentState = "loading";
+					windows.title = event.itemRenderer.data.name;
+					ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_ITEMTIP_RESULT,getItemTipHandler);
+					ConnectionProxy.getInstances().getItemTipList(event.itemRenderer.data.item_id);
+				}
+			}
+			private function getItemTipHandler(event:ItemResultEvent):void{
+				isSearch = false;
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_ITEMTIP_RESULT,getItemTipHandler);
+				windows.itemtipMessage = event.data.toString();
+				windows.currentState = "complete";
+			}
+		]]>
+	</mx:Script>
+	<mx:TabNavigator width="100%" height="100%" id="myTab">
+		<mx:Canvas label="主要天賦" width="100%" height="100%">
+			<mx:DataGrid id="wishListGrid" width="100%" height="100%" dataProvider="{wishList}" doubleClickEnabled="true" itemDoubleClick="doubleClickItem(event)">
+				<mx:columns>
+					<mx:DataGridColumn headerText="" dataField="icon" itemRenderer="comp.renderer.DataGridImage" width="21"/>
+					<mx:DataGridColumn headerText="物品名稱" dataField="name"/>
+					<mx:DataGridColumn headerText="類型" dataField="type" width="80"/>
+					<mx:DataGridColumn headerText="部位" dataField="part" width="80"/>
+					<mx:DataGridColumn headerText="iLv" dataField="level" width="50"/>
+				</mx:columns>
+			</mx:DataGrid>
+		</mx:Canvas>
+		<mx:Canvas label="次要天賦" width="100%" height="100%">
+			<mx:DataGrid id="wishListGrid2" width="100%" height="100%" dataProvider="{wishList2}" doubleClickEnabled="true" itemDoubleClick="doubleClickItem(event)">
+				<mx:columns>
+					<mx:DataGridColumn headerText="" dataField="icon" itemRenderer="comp.renderer.DataGridImage" width="21"/>
+					<mx:DataGridColumn headerText="物品名稱" dataField="name"/>
+					<mx:DataGridColumn headerText="類型" dataField="type" width="80"/>
+					<mx:DataGridColumn headerText="部位" dataField="part" width="80"/>
+					<mx:DataGridColumn headerText="iLv" dataField="level" width="50"/>
+				</mx:columns>
+			</mx:DataGrid>
+		</mx:Canvas>
+	</mx:TabNavigator>
+</mx:Canvas>

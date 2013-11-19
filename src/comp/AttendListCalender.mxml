@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%" creationComplete="init()">
+	<mx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import mx.events.DateChooserEvent;
+			import mx.events.CalendarLayoutChangeEvent;
+			import mx.core.UITextField;
+			import mx.controls.Alert;
+			
+			import mx.controls.CalendarLayout;
+			use namespace mx_internal;
+			// collection to hold date, data and label
+			public var dateCollection:ArrayCollection = new ArrayCollection([
+				{ date:"8/15/2011", data:"party value", label:"Party"},
+				{ date:"1/5/2009", data:"meeting value", label:"Meeting"},
+				{ date:"12/15/2008", data:"holiday value", label:"Holiday"},
+				{ date:"12/15/2008", data:"dinner value", label:"Dinner"},
+				{ date:"12/15/2008", data:"bedtime value", label:"Bedtime"}
+			]);
+			
+			private function init():void
+			{
+				this.addEventListener(TextEvent.LINK, linkHandler);
+			}
+			
+			private function events():void
+			{
+				for(var i:uint = 0; i < mycal.numChildren; i++)
+				{
+					var calendarObj:Object = mycal.getChildAt(i);
+					if(calendarObj.hasOwnProperty("className"))
+					{
+						if(calendarObj.className == "CalendarLayout")
+						{
+							trace("cal");
+							var cal:CalendarLayout = CalendarLayout(calendarObj);
+							
+							for(var j:uint = 0; j < cal.numChildren; j++)
+							{
+								var dateLabel:Object = cal.getChildAt(j);
+								if(dateLabel.hasOwnProperty("text"))
+								{
+									trace(dateLabel.text);
+									var day:UITextField = UITextField(dateLabel);
+									var dayHTML:String = day.text;
+									day.selectable = true;
+									day.wordWrap = true;
+									day.multiline = true;
+									//day.border = true;
+									//TODO: UITextField has no style for border, and the UITextField.border property is not really very useful
+									day.styleName = "EventLabel";
+									
+									//TODO: This passes all kinds of crazy dates to the helper like 11/S/2008 - but still works...check dateLabel.text == Number?
+									//Make sure to add one to month since it is zero based - TODO: make month builder function:String?
+									var eventArray:Array = dateHelper((mycal.displayedMonth+1) + "/" + dateLabel.text + "/" + mycal.displayedYear);
+									if(eventArray.length > 0)
+									{
+										
+										for(var k:uint = 0; k < eventArray.length; k++)
+										{
+											dayHTML += "<br><A HREF='event:" + eventArray[k].data + "' TARGET=''>" + eventArray[k].label + "</A>";
+										}
+										day.htmlText = dayHTML;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			
+			private function linkHandler(event:TextEvent):void
+			{
+				Alert.show("selected: " + event.text);
+			}
+			private function dateHelper(renderedDate:String):Array
+			{
+				var result:Array = new Array();
+				for(var i:uint = 0; i < dateCollection.length; i++)
+				{
+					if(dateCollection[i].date == renderedDate)
+					{
+						result.push(dateCollection[i]);
+					}
+				}
+				return result;
+			}
+		]]>
+	</mx:Script>
+	<mx:DateChooser id="mycal" creationComplete="events()" todayColor="0xEEEEEE" updateComplete="events()" right="5" left="5" bottom="5" top="5"/>
+</mx:Canvas>

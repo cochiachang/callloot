@@ -1,0 +1,418 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" currentState="step1" creationComplete="init()">
+	<mx:Script>
+		<![CDATA[
+			import com.adobe.serialization.json.JSON;
+			
+			import comp.pupUpWindows.MemberSelector;
+			
+			import model.event.CommonEvent;
+			import model.event.ItemResultEvent;
+			import model.utils.parseXMLContent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.core.IFlexDisplayObject;
+			import mx.core.UIComponent;
+			import mx.events.CloseEvent;
+			import mx.formatters.DateFormatter;
+			import mx.managers.PopUpManager;
+			import mx.utils.ObjectProxy;
+			
+			import proxy.ConnectionProxy;
+			
+			[Bindable]
+			public var memberList:ArrayCollection;
+			[Bindable]
+			public var memberList2:ArrayCollection;
+			[Bindable]
+			public var memberStatus:ArrayCollection;
+			[Bindable]
+			private var xmlParse:parseXMLContent;
+			[Bindable]
+			private var insertEventDateText:String;
+			[Bindable]
+			private var insertEventTitleText:String;
+			[Bindable]
+			private var insertEventDescriptionText:String;
+			[Bindable]
+			private var leaveStaus:String;
+			[Bindable]
+			private var memberLeaveList:ArrayCollection;
+			[Bindable]
+			public static var attendType:Array = ['準時出席','晚到','請假','補假','未請假缺席'];
+			
+			private function init():void{
+				xmlParse= parseXMLContent.getInstances();
+			}
+			private function resetDate(Unit:DateField):void {
+				Unit.dayNames=['日','一','二','三','四','五','六'] ;
+				Unit.monthNames=['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+				Unit.yearSymbol="年";
+				Unit.yearNavigationEnabled=true;
+			}
+			/**
+			 * 第一步驟到第二步驟
+			 */
+			private function step1Next():void{
+				if(insertEventTitle.text != '' && insertEventXML.text != ''){
+					try{
+						var xmlContent:XMLList = new XMLList(insertEventXML.text);
+						xmlParse.setParseXML(xmlContent);
+						
+						insertEventDateText = insertEventDate.text;
+						insertEventTitleText = insertEventTitle.text;
+						insertEventDescriptionText = insertEventDescription.text;
+						//取得當日請假名單
+						ConnectionProxy.getInstances().addEventListener(ItemResultEvent.COMMON_EVENT_RESULT,onLeaveResultHandler);
+						var dateFormatter:DateFormatter = new DateFormatter();
+						dateFormatter.formatString = "YYYYMMDD";
+						var obj:Object = new Object();
+						obj.type = 'getOnLeaveMember';
+						obj.time = dateFormatter.format(insertEventDate.selectedDate);
+						ConnectionProxy.getInstances().commonEvent("haveOnLeave.php",obj);
+						
+					}catch(err:Error){
+						Alert.show("您輸入的xml不完整或格式有誤!");
+					}
+				}else{
+					Alert.show('副本名稱及副本xml不可為空!');
+				}
+			}
+			private function onLeaveResultHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.COMMON_EVENT_RESULT,onLeaveResultHandler);
+				try{
+					if(event.result.result.type == "getOnLeaveMember"){
+						if(event.result.result.member as ObjectProxy){
+							memberLeaveList = new ArrayCollection();
+							memberLeaveList.addItem(event.result.result.member);
+						}else{
+							memberLeaveList = event.result.result.member;
+						}
+					}
+				}catch(e:Error){}
+				this.currentState = "step2";
+			}
+			/**
+			 * 第二步驟預備
+			 */
+			private function step2Prepare():void{
+				memberStatus = new ArrayCollection();
+				
+				//分析有誰沒來(以及物品持有者的會員)
+				var name:String;
+				var id:String;
+				for(var i:String in memberList){
+					if(memberList[i]['children'] is ObjectProxy){
+						name = memberList[i]['children'].label;
+						id = memberList[i]['children'].data;
+						memberStatus.addItem(new ObjectProxy({
+							name:name,
+							id:id,
+							status:attendType[judgeMemberStatus(name)],
+							list:judgeMemberGetItem(name)
+						}));
+					}else{
+						for(var j:String in memberList[i]['children']){
+							name = memberList[i]['children'][j].label;
+							id = memberList[i]['children'][j].data;
+							memberStatus.addItem(new ObjectProxy({
+								name:name,
+								id:id,
+								status:attendType[judgeMemberStatus(name)],
+								list:judgeMemberGetItem(name)
+							}));
+						}
+					}
+				}
+				//增加修改事件監聽
+				myDatagrid.addEventListener(CommonEvent.DELETE_ITEM_EVENT,deleteEventHandler);
+				myDatagrid.addEventListener(CommonEvent.MODIFY_PICKUP_MEMBER,modifyPickupMember);
+			}
+			private function step2Leave():void{
+				myDatagrid.removeEventListener(CommonEvent.DELETE_ITEM_EVENT,deleteEventHandler);
+				myDatagrid.removeEventListener(CommonEvent.MODIFY_PICKUP_MEMBER,modifyPickupMember);
+			}
+			/**
+			 * 將ct_tracer的xml交叉比對會員資料庫的會員以判斷誰拿了什麼及出席狀況
+			 */
+			private function judgeMemberStatus(name:String):int{
+				var status:int = 4;
+				var attendList:ArrayCollection = xmlParse.getPlayerInfo();
+				for(var j:String in memberLeaveList){
+					if(memberLeaveList[j]['name'] == name){
+						if(memberLeaveList[j]['type'] == 1){
+							return 1;
+						}else{
+							status = 2;
+						}
+					}
+				}
+				for(var i:String in attendList){
+					if(attendList[i]['name'] == name){
+						return 0;
+					}
+				}
+				return status;
+			}
+			private function judgeMemberGetItem(name:String):ArrayCollection{
+				var attendList:ArrayCollection = xmlParse.getLoot();
+				var item:ArrayCollection = new ArrayCollection();
+				for(var i:String in attendList){
+					if(attendList[i]['Player'] == name){
+						item.addItem(attendList[i]);
+					}
+				}
+				return item;
+			}
+			/**
+			 * Step2中的操作相關函數
+			 */
+			private var selectedItem:Object;
+			private function deleteEventHandler(event:CommonEvent):void{
+				if(selectedItem!=event.data){
+					selectedItem = event.data;
+					Alert.okLabel="確定";  
+					Alert.cancelLabel="取消";  
+					Alert.show("你確定刪除此項物品紀錄嗎?","刪除確認",Alert.OK|Alert.CANCEL,this,ConfirmDelete,null,Alert.CANCEL); 
+				}
+			}
+			private function ConfirmDelete(evt:CloseEvent):void{  
+				if(evt.detail==Alert.OK){
+					var index:int = (myDatagrid.selectedItem.list as ArrayCollection).getItemIndex(selectedItem);
+					(myDatagrid.selectedItem.list as ArrayCollection).removeItemAt(index);
+				} 
+			} 
+			private var modifyItem:Object;
+			private function modifyPickupMember(event:CommonEvent):void{
+				var selector:MemberSelector = new MemberSelector();
+				selector.title = "選擇要分配的人員";
+				selector.labelText = "請選擇此樣物品要分給的會員：";
+				selector.showCloseButton = true;
+				selector.addEventListener(CloseEvent.CLOSE,closeItem);
+				selector.addEventListener(CommonEvent.MODIFY_PICKUP_MEMBER_SELECT,modifyPickupMemberSelect);
+				modifyItem = event.data;
+				PopUpManager.addPopUp(selector,this);
+				PopUpManager.centerPopUp(selector);
+			}
+			private function closeItem(event:CloseEvent):void{
+				PopUpManager.removePopUp(event.currentTarget as IFlexDisplayObject);
+				modifyItem = null;
+			}
+			private function modifyPickupMemberSelect(event:CommonEvent):void{
+				//搜尋舊有物品位置&新增在新的位置
+				for(var i:String in memberStatus){
+					for(var j:String in memberStatus[i].list){
+						if(memberStatus[i].list[j].ItemID == modifyItem.ItemID){
+							(memberStatus[i].list as ArrayCollection).removeItemAt(int(j));
+							break;
+						}
+					}
+					if(memberStatus[i].name == event.data.label){
+						(memberStatus[i].list as ArrayCollection).addItem(modifyItem);
+					}
+				}
+				PopUpManager.removePopUp(event.currentTarget as IFlexDisplayObject);
+			}
+			/**
+			 * 送出資料函數
+			 */
+			private function confirmSubmit():void{
+				//將arraycollection轉為array
+				var array:Array = memberStatus.toArray();
+				for(var i:String in memberStatus){
+					var item:Array = new Array();
+					for(var j:String in array[i].list){
+						item.push({id:array[i].list[j]['ItemID'],name:array[i].list[j]['itemName'].toString()});
+					}
+					array[i] = {name:memberStatus[i]['name'],
+						id:memberStatus[i]['id'],
+						status:memberStatus[i]['status'],
+						list:item
+					};
+					
+				}
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.SAVE_RAID_DATA_RESULT,saveRaidDataResult);
+				ConnectionProxy.getInstances().saveRaidData(JSON.encode(array),insertEventDateText,
+					insertEventTitleText,insertEventDescriptionText);
+			}
+			private function saveRaidDataResult(event:ItemResultEvent):void{
+				if(event.data){
+					Alert.show('副本資料新增成功!');
+					clearAllData();
+				}else{
+					Alert.show('儲存副本資料時發生錯誤!');
+				}
+			}
+			private function clearAllData():void{
+				this.currentState = 'step1';
+				insertEventDate.selectedDate = new Date();
+				insertEventTitle.text = '';
+				insertEventDescription.text = '';
+				insertEventXML.text = '';
+				this.dispatchEvent(new Event("updateList"));
+			}
+			private function insertItemAdd():void{
+				if(insertItemNameAdd.text!= ''){
+					//先搜尋物品編號
+					ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_ITEM_NUMBER_RESULT,insertItemAddResult);
+					ConnectionProxy.getInstances().getItemNumber(insertItemNameAdd.text,hardLevel.selectedLabel);
+					insertItemNameAdd.enabled = false;
+				}
+			}
+			private function insertItemAddResult(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_ITEM_NUMBER_RESULT,insertItemAddResult);
+				
+				if(event.data.toString() == ''){
+					Alert.show('物品並未新增成功!因為資料庫找不到這件物品資料!\n請確認您的物品名稱輸入正確!');
+				}else{
+					var obj:ObjectProxy = new ObjectProxy({
+						ItemID:event.data.toString(),
+						Player:pickUpItemMember.selectedLabel,
+						itemName:insertItemNameAdd.text,
+						icon:''
+					});
+					//搜尋要新增的會員位置
+					for(var i:String in memberStatus){
+						if(memberStatus[i]['name'] == pickUpItemMember.selectedLabel){
+							(memberStatus[i]['list'] as ArrayCollection).addItem(obj);
+							break;
+						}
+					}
+					Alert.show('物品已新增成功!');
+				}
+				insertItemNameAdd.enabled=true;
+				insertItemNameAdd.text='';
+			}
+			private function sortDate(obj1:Object, obj2:Object):int
+			{
+				var list:Object = {準時出席:0,晚到:1,請假:2,補假:3,未請假缺席:4};
+				var d1:Number = Number(list[obj1.status]);
+				var d2:Number = Number(list[obj2.status]);
+				
+				if(d1 < d2) {
+					return -1;
+				} else if(d1 == d2) {
+					return 0;
+				}
+				return 1;
+			}
+		]]>
+	</mx:Script>
+	<mx:states>
+		<mx:State name="step1">
+			<mx:SetProperty target="{itemContainer}" name="visible" value="true"/>
+			<mx:AddChild position="lastChild" relativeTo="{itemContainer}">
+				<mx:HBox width="100%" horizontalGap="0">
+					<mx:Label color="#FF0000" text="＊"/>
+					<mx:Text text="日期："/>
+					<mx:DateField id="insertEventDate" selectedDate="{new Date()}" formatString="YYYY/MM/DD" initialize="resetDate(insertEventDate)"/>
+				</mx:HBox>
+			</mx:AddChild>
+			<mx:AddChild position="lastChild" relativeTo="{itemContainer}">
+				<mx:HBox width="100%" horizontalGap="0">
+					<mx:Label color="#FF0000" text="＊"/>
+					<mx:Label text="副本名稱："/>
+					<mx:TextInput id="insertEventTitle"/>
+				</mx:HBox>
+			</mx:AddChild>
+			<mx:AddChild position="lastChild" relativeTo="{itemContainer}">
+				<mx:HBox width="100%">
+					<mx:Label text="相關敘述："/>
+					<mx:TextArea width="100%" id="insertEventDescription"/>
+				</mx:HBox>
+			</mx:AddChild>
+			<mx:AddChild position="lastChild" relativeTo="{itemContainer}">
+				<mx:TextArea id="insertEventXML" width="100%" height="100%"/>
+			</mx:AddChild>
+			<mx:AddChild position="before" relativeTo="{insertEventXML}">
+				<mx:HBox width="100%" horizontalGap="0">
+					<mx:Label color="#FF0000" text="＊"/>
+					<mx:Text text="副本XML："/>
+				</mx:HBox>
+			</mx:AddChild>
+			<mx:AddChild position="lastChild" relativeTo="{itemContainer}">
+				<mx:HBox width="100%" horizontalAlign="right">
+					<mx:Button id="button1" label="下一步驟" click="step1Next()"/>
+				</mx:HBox>
+			</mx:AddChild>
+		</mx:State>
+		<mx:State name="step2" enterState="step2Prepare()" exitState="step2Leave()">
+			<mx:AddChild relativeTo="{itemContainer}" position="lastChild">
+				<mx:HBox width="100%">
+					<mx:Label text="副本日期："/>
+					<mx:Label width="100%" id="areaDate" text="{insertEventDateText}"/>
+				</mx:HBox>
+			</mx:AddChild>
+			<mx:AddChild relativeTo="{itemContainer}" position="lastChild">
+				<mx:DataGrid width="100%" id="myDatagrid" dataProvider="{memberStatus}" height="100%" editable="true">
+					<mx:columns>
+						<mx:DataGridColumn headerText="會員名稱" dataField="name" editable="false" width="200"/>
+						<mx:DataGridColumn headerText="出席狀況" dataField="status" editable="true" width="100" sortCompareFunction="sortDate">
+							<mx:itemEditor>
+								<mx:Component>
+									<mx:ComboBox editable="false" dataProvider="{InsertAttendRecord.attendType}"/>
+								</mx:Component>
+							</mx:itemEditor>
+							<mx:itemRenderer>
+								<mx:Component>
+									<mx:Label>
+										<mx:Script>
+											<![CDATA[
+												private var attendTypeColor:Object = {準時出席:0x000000,晚到:0x5200A0,請假:0x0200A0,補假:0xDC7100,未請假缺席:0xFF0000};
+												override public function set data(value:Object):void{
+													this.text = value.status;
+													this.setStyle("color",attendTypeColor[value.status]);
+													super.data = value;
+												}
+											]]>
+										</mx:Script>
+									</mx:Label>
+								</mx:Component>
+							</mx:itemRenderer>
+						</mx:DataGridColumn>
+						<mx:DataGridColumn headerText="獲得物品" dataField="item" editable="false" itemRenderer="comp.renderer.AttendItemListRenderer" />
+					</mx:columns>
+				</mx:DataGrid>
+			</mx:AddChild>
+			<mx:AddChild relativeTo="{myDatagrid}" position="before">
+				<mx:HBox width="100%">
+					<mx:Text text="副本名稱："/>
+					<mx:Text width="100%" id="areaName" text="{insertEventTitleText}"/>
+				</mx:HBox>
+			</mx:AddChild>
+			<mx:AddChild relativeTo="{myDatagrid}" position="before">
+				<mx:HBox width="100%">
+					<mx:Text text="副本描述："/>
+					<mx:Text width="100%" id="areaDescription" text="{insertEventDescriptionText}"/>
+				</mx:HBox>
+			</mx:AddChild>
+			<mx:AddChild relativeTo="{itemContainer}" position="lastChild">
+				<mx:HBox width="100%" horizontalAlign="right" verticalAlign="middle">
+					<mx:Button label="上一步驟" click="this.currentState='step1'"/>
+					<mx:Button label="確認送出" click="confirmSubmit()"/>
+				</mx:HBox>
+			</mx:AddChild>
+			<mx:AddChild position="before" relativeTo="{myDatagrid}">
+				<mx:HBox width="100%">
+					<mx:Label text="新增物品: "/>
+					<mx:TextInput width="120" id="insertItemNameAdd"/>
+					<mx:Label text="難度:"/>
+					<mx:ComboBox width="80" id="hardLevel">
+					<mx:dataProvider>
+						<mx:Array>
+							<mx:String>困難</mx:String>
+							<mx:String>普通</mx:String>
+						</mx:Array>
+					</mx:dataProvider>
+					</mx:ComboBox>
+					<mx:Label text="分配給："/>
+					<mx:ComboBox width="120" id="pickUpItemMember" dataProvider="{memberList2}"/>
+					<mx:Button label="新增物品" click="insertItemAdd()"/>
+				</mx:HBox>
+			</mx:AddChild>
+		</mx:State>
+	</mx:states>
+	<mx:VBox id="itemContainer" width="100%" height="100%">
+	</mx:VBox>
+</mx:Canvas>

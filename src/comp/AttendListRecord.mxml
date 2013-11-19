@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns:mx="http://www.adobe.com/2006/mxml"
+		 xmlns:comp="comp.pupUpWindows.*"
+		 width="100%" height="100%" backgroundAlpha="1.0"
+		 creationComplete="init()" verticalGap="0">
+	<mx:Script>
+		<![CDATA[
+			import com.adobe.serialization.json.JSON;
+			
+			import comp.pupUpWindows.ModifyAttendRecord;
+			import comp.pupUpWindows.ModifyRecord;
+			
+			import model.event.CommonEvent;
+			import model.event.ItemResultEvent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.containers.TitleWindow;
+			import mx.controls.Alert;
+			import mx.controls.Menu;
+			import mx.core.IFlexDisplayObject;
+			import mx.events.CloseEvent;
+			import mx.events.ListEvent;
+			import mx.managers.PopUpManager;
+			import mx.utils.ObjectProxy;
+			
+			import proxy.ConnectionProxy;
+			
+			[Bindable]
+			public var memberInfo:Object;
+			[Bindable]
+			private var item:ModifyRecord;
+			private var windows:TitleWindow;
+			private function init():void{
+				sendSearch();
+				windows = new TitleWindow();
+				item = new ModifyRecord();
+				item.addEventListener(CommonEvent.MODIFY_RAID_DATA,sendModifyRaidData);
+				windows.addChild(item);
+				windows.visible = false;
+				windows.showCloseButton = true;
+				windows.width = 500;
+				windows.height = 400;
+				windows.title = '修改副本資訊';
+				windows.addEventListener(CloseEvent.CLOSE,function (event:CloseEvent):void{windows.visible = false;})
+				PopUpManager.addPopUp(windows,this);
+			}
+			private function sendModifyRaidData(event:CommonEvent):void{
+				var array:Array = new Array();
+				for(var i:String in item.memberStatus){
+					array.push({member_sn:item.memberStatus[i]['member_sn'],status:item.memberStatus[i]['status']});
+				}
+				ConnectionProxy.getInstances().saveRaidModify(raidList.selectedItem.id,
+												item.areaName.text,
+												item.areaDate.text,
+												item.areaDescription.text,
+												JSON.encode(array));
+			}
+			private function resetDate(Unit:DateField):void {
+				Unit.dayNames=['日','一','二','三','四','五','六'] ;
+				Unit.monthNames=['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+				Unit.yearSymbol="年";
+				Unit.yearNavigationEnabled=true;
+			}
+			public function sendSearch():void{
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_RAID_DATA_LIST_RESULT,getRaidDataListHandler);
+				ConnectionProxy.getInstances().getRaidDataList(q1_group.selection.value.toString(),fromDate.text,toDate.text);
+			}
+			private var tmpSelectObj:int;
+			private function getRaidDataListHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_RAID_DATA_LIST_RESULT,getRaidDataListHandler);
+				raidList.dataProvider = event.data;
+				if(event.data !=null && raidList!=null){
+					raidList.selectedIndex = 0;
+					getRaidDetail();
+				}
+				
+			}
+			private function getRaidDetail():void{
+				var eventId:String = raidList.selectedItem.id;
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_RAID_DATA_DETAIL_RESULT,getRaidDetailHandler);
+				ConnectionProxy.getInstances().getRaidDetail(eventId);
+			}
+			
+			private function getRaidDetailHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_RAID_DATA_DETAIL_RESULT,getRaidDetailHandler);
+				raidDetail.areaDate.text = event.data.date;
+				raidDetail.areaName.text = event.data.title;
+				raidDetail.areaDescription.text = event.data.description;
+				raidDetail.memberStatus.htmlText = event.data.member;
+				raidDetail.itemStatus.htmlText = event.data.itemList;
+				//設定修改窗的資訊
+				if(event.data.memberList != null)
+				if(event.data.memberList.member as ObjectProxy){
+					item.memberStatus = new ArrayCollection();
+					item.memberStatus.addItem(event.data.memberList.member);
+				}else{
+					item.memberStatus = event.data.memberList.member;
+				}
+				item.areaDate.text = event.data.date;
+				item.areaName.text = event.data.title;
+				item.areaDescription.text = event.data.description;
+			}
+			private function deleteRecord():void{
+				Alert.okLabel="確定";  
+				Alert.cancelLabel="取消";  
+				Alert.show("你確定刪除此項物品紀錄嗎?","刪除確認",Alert.OK|Alert.CANCEL,this,ConfirmDelete,null,Alert.CANCEL); 
+				
+			}
+			private function ConfirmDelete(evt:CloseEvent):void{  
+				if(evt.detail==Alert.OK){
+					var eventId:String = raidList.selectedItem.id;
+					ConnectionProxy.getInstances().addEventListener(ItemResultEvent.DELETE_RAID_DATA_RESULT,deleteRecordListHandler);
+					ConnectionProxy.getInstances().deleteRaidInfo(eventId);
+				} 
+			}
+			private function deleteRecordListHandler(event:ItemResultEvent):void{
+				if(event.data.toString() == 'success'){
+					Alert.show('刪除事件成功!');
+					sendSearch()
+				}else{
+					Alert.show('刪除事件失敗!');
+				}
+			}
+			private function modifyRecord():void{
+				windows.visible = true;
+				PopUpManager.centerPopUp(windows);
+			}
+			private function modifyItemRecord():void{
+				var eventId:String = raidList.selectedItem.id;
+				var win:TitleWindow = new TitleWindow();
+				var mod:ModifyAttendRecord = new ModifyAttendRecord();
+				win.showCloseButton = true;
+				win.addEventListener(CloseEvent.CLOSE,function(e:CloseEvent):void{
+					PopUpManager.removePopUp(e.target as IFlexDisplayObject);
+				});
+				win.addChild(mod);
+				win.width = 650;
+				win.height = 400;
+				win.title = "修改物品拾取資料";
+				PopUpManager.addPopUp(win,this);
+				PopUpManager.centerPopUp(win);
+				mod.eventId(eventId);
+				mod.addEventListener("modifySuccess",modifySuccess);
+			}
+			private function modifySuccess(e:Event):void{
+				PopUpManager.removePopUp((e.target as ModifyAttendRecord).parent as IFlexDisplayObject);
+				getRaidDetail();
+			}
+		]]>
+	</mx:Script>
+	<mx:RadioButtonGroup id="q1_group" enabled="false" />
+	<mx:HBox width="100%" verticalAlign="middle">
+		<mx:Label fontSize="12" fontWeight="bold" text="篩選條件："/>
+		<mx:RadioButton label="三十天內資料" group="{q1_group}" selected="true" value="1"/>
+		<mx:RadioButton label="從" group="{q1_group}" value="2"/>
+		<mx:DateField id="fromDate" formatString="YYYY/MM/DD" selectedDate="{new Date()}" initialize="resetDate(fromDate)"/>
+		<mx:Label text="至"/>
+		<mx:DateField id="toDate" formatString="YYYY/MM/DD" selectedDate="{new Date()}" initialize="resetDate(toDate)"/>
+		<mx:Label text="的資料"/>
+		<mx:Button label="搜尋" click="sendSearch()"/>
+	</mx:HBox>
+	<mx:HBox width="100%" height="100%" horizontalGap="0">
+		<mx:List width="250" height="100%" borderStyle="none" id="raidList" labelField="label" click="getRaidDetail()"/>
+		<mx:VBox width="100%" height="100%">
+			<comp:RaidDetail id="raidDetail"/>
+			<mx:HBox width="100%" horizontalAlign="right" includeInLayout="{(memberInfo.level == 1)}" visible="{(memberInfo.level == 1)}">
+				<mx:Button label="修改物品拾取" click="modifyItemRecord()"/>
+				<mx:Button label="修改人員及事件描述" click="modifyRecord()"/>
+				<mx:Button label="刪除此事件" click="deleteRecord()"/>
+			</mx:HBox>
+		</mx:VBox>
+	</mx:HBox>
+</mx:VBox>

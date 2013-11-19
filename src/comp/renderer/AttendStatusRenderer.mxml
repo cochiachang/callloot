@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Label xmlns:mx="http://www.adobe.com/2006/mxml">
+	<mx:Script>
+		<![CDATA[
+			private var attendTypeColor:Object = {準時出席:0x000000,晚到:0x5200A0,請假:0x0200A0,補假:0xDC7100,未請假缺席:0xFF0000};
+			override public function set data(value:Object):void{
+				super.data = value;
+				this.text = value.status;
+				this.setStyle("color",attendTypeColor[value.status]);
+			}
+		]]>
+	</mx:Script>
+</mx:Label>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:comp="comp.*" creationComplete="init()">
+	<!--此類別是新增出團紀錄的類別-->
+	<mx:Script>
+		<![CDATA[
+			import model.event.ItemResultEvent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.resources.ResourceManager;
+			import mx.rpc.events.ResultEvent;
+			
+			import proxy.ConnectionProxy;
+			[Bindable]
+			public var memberInfo:Object;
+			[Bindable]
+			private var isListStatus:Boolean = true;
+			[Bindable]
+			private var memberList:ArrayCollection;
+			[Bindable]
+			private var memberList2:ArrayCollection;
+			private function init():void{
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.MEMBER_LIST_EVENT,resultHandler);
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.MEMBER_COMMON_LIST_EVENT,resultHandler);
+				ConnectionProxy.getInstances().getMemberList();
+				myInsertAttendRecord.addEventListener("updateList",updateList);
+			}
+			private function updateList(event:Event):void{
+				myAttendListRecord.sendSearch();
+			}
+			private function toggleStatus(event:Event):void{
+				isListStatus = !isListStatus;
+			}
+			private function resultHandler(event:ItemResultEvent):void{
+				switch(event.type){
+					case ItemResultEvent.MEMBER_LIST_EVENT:
+						//ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.MEMBER_LIST_EVENT,resultHandler);
+						memberList = event.data as ArrayCollection;
+					break;
+					case ItemResultEvent.MEMBER_COMMON_LIST_EVENT:
+						//ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.MEMBER_COMMON_LIST_EVENT,resultHandler);
+						memberList2 = event.data as ArrayCollection;
+					break;
+				}
+			}
+		]]>
+	</mx:Script>
+	<mx:VBox x="0" y="0" width="100%" height="100%" verticalGap="0">
+		<mx:HBox width="100%" horizontalAlign="left" includeInLayout="{(memberInfo.level == 1)}" visible="{(memberInfo.level == 1)}">
+			<mx:Button label="出團紀錄列表" toggle="true" selected="{isListStatus}" click="toggleStatus(event)"/>
+			<mx:Button label="新增出團紀錄" toggle="true" selected="{!isListStatus}" click="toggleStatus(event)"/>
+		</mx:HBox>
+		<mx:Canvas width="100%" height="100%">
+			<comp:AttendListRecord memberInfo="{memberInfo}" id="myAttendListRecord" width="100%" height="100%" visible="{isListStatus}"/>
+			<comp:InsertAttendRecord id="myInsertAttendRecord" width="100%" height="100%" visible="{!isListStatus}" memberList="{memberList}" memberList2="{memberList2}"/>
+		</mx:Canvas>
+	</mx:VBox>
+</mx:Canvas>

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%" creationComplete="init()" xmlns:comp="comp.*">
+	<mx:Script>
+		<![CDATA[
+			import model.event.ItemResultEvent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.events.FlexEvent;
+			import mx.events.ListEvent;
+			import mx.managers.PopUpManager;
+			import mx.rpc.events.ResultEvent;
+			import mx.utils.ObjectProxy;
+			
+			import proxy.ConnectionProxy;
+			[Bindable]
+			public var basePath:String;
+			private function init():void{
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.MEMBER_LIST_EVENT,resultHandler);
+				ConnectionProxy.getInstances().getMemberList();
+				memberAttendStatus.mySearchBytton.addEventListener(MouseEvent.CLICK,updateAllAttendList);
+			}
+			private function updateAllAttendList(e:MouseEvent):void{
+				myMemberAttendStatusList.getInfo(memberAttendStatus.q1_group.selection.value.toString(),
+					memberAttendStatus.fromDate.text,memberAttendStatus.toDate.text);
+			}
+			private function resultHandler(event:ItemResultEvent):void{
+				//ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.MEMBER_LIST_EVENT,resultHandler);
+				memberList.dataProvider = event.data
+			}
+			private function memberListChange(event:Event):void{
+				if(event.currentTarget.selectedItem.data!=null){
+					//取得會員願望清單
+					getItemListShowPlace.visible = true;
+					var memberInfo:Object = new Object();
+					memberInfo.id = event.currentTarget.selectedItem.data;
+					ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_MEMBER_WISH_LIST_RESULT,searchWishListHandler);
+					ConnectionProxy.getInstances().getPersonWishList(memberInfo.id);
+					//取得其他
+					memberPickupStatus.getMemberInfo(memberInfo.id);
+					memberAttendList.getMemberInfo(memberInfo.id);
+					memberAttendStatus.member_id = memberInfo.id;
+				}
+			}
+			private function searchWishListHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_MEMBER_WISH_LIST_RESULT,searchWishListHandler);
+				memberItem.wishList = event.data.wish1;
+				memberItem.wishList2 = event.data.wish2;
+			}
+			
+		]]>
+	</mx:Script>
+	<mx:HBox x="0" y="0" width="100%" height="100%">
+		<mx:Tree height="100%" id="memberList" width="150" change="memberListChange(event)"/>
+		<mx:TabNavigator width="100%" height="100%" id="getItemListShowPlace" creationPolicy="all">
+			<comp:MemberWishItem id="memberItem" label="裝備需求列表" width="100%" height="100%" basePath="{basePath}"/>
+			<comp:MemberPickupStatus id="memberPickupStatus" label="裝備取得列表" width="100%" height="100%"/>
+			<comp:MemberAttendList id="memberAttendList" label="會員出席列表" width="100%" height="100%"/>
+			<mx:Canvas label="副本出席狀況" width="100%" height="100%">
+				<mx:VBox width="100%" height="100%">
+					<comp:MemberAttendStatus id="memberAttendStatus" width="100%"/>
+					<mx:Label width="100%" fontWeight="bold" text="《全隊出席狀況》"/>
+					<comp:MemberAttendStatusList width="100%" id="myMemberAttendStatusList"/>
+				</mx:VBox>
+			</mx:Canvas>
+		</mx:TabNavigator>
+	</mx:HBox>
+	
+</mx:Canvas>

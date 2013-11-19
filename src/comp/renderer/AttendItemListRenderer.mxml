@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" horizontalScrollPolicy="off" verticalScrollPolicy="off" creationComplete="init()">
+	<mx:Script>
+		<![CDATA[
+			import comp.pupUpWindows.ItemTip;
+			
+			import model.event.CommonEvent;
+			import model.event.ItemResultEvent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.events.ListEvent;
+			import mx.managers.PopUpManager;
+			
+			import proxy.ConnectionProxy;
+			[Bindable]
+			private var itemList:ArrayCollection;
+			private var isSearch:Boolean = false;
+			private var windows:ItemTip
+			override public function set data(value:Object):void{
+				super.data = value;
+				itemList = data.list as ArrayCollection;
+			}
+			private function init():void{
+				windows = new ItemTip();
+				windows.visible = false;
+				PopUpManager.addPopUp(windows,this.parent);
+			}
+			private function itemClickHandler(evnet:ListEvent):void{
+				if(!isSearch){
+					isSearch = true;
+					windows.visible = true;
+					PopUpManager.centerPopUp(windows);
+					windows.currentState = "loading";
+					windows.title = evnet.itemRenderer.data.itemName;
+					ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_ITEMTIP_RESULT,getItemTipHandler);
+					ConnectionProxy.getInstances().getItemTipList(evnet.itemRenderer.data.ItemID);
+				}
+			}
+			private function getItemTipHandler(event:ItemResultEvent):void{
+				isSearch = false;
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_ITEMTIP_RESULT,getItemTipHandler);
+				windows.itemtipMessage = event.data.toString();
+				windows.currentState = "complete";
+			}
+		]]>
+	</mx:Script>
+	<mx:DataGrid id="mainDataGrid" x="0" y="0" width="100%" height="100%" dataProvider="{itemList}" doubleClickEnabled="true"
+				 itemDoubleClick="itemClickHandler(event)" showHeaders="false" horizontalScrollPolicy="off">
+		<mx:columns>
+			<mx:DataGridColumn dataField="col1" headerText="" width="21">
+				<mx:itemRenderer>
+					<mx:Component>
+						<mx:Image source="{(data.icon == '') ? '':('http://tw-wowbox.meetgee.com/images/icons/'+data.icon+'.jpg')}"/>
+					</mx:Component>
+				</mx:itemRenderer>
+			</mx:DataGridColumn>
+			<mx:DataGridColumn dataField="itemName" headerText="物品名稱"/>
+			<mx:DataGridColumn width="80">
+				<mx:itemRenderer>
+					<mx:Component>
+						<mx:Button label="刪除物品" click="deleteItem()">
+							<mx:Script>
+								<![CDATA[
+									import model.event.CommonEvent;
+									private function deleteItem():void{
+										this.dispatchEvent(new CommonEvent(CommonEvent.DELETE_ITEM_EVENT,data,true));
+									}
+								]]>
+							</mx:Script>
+						</mx:Button>
+					</mx:Component>
+				</mx:itemRenderer>
+			</mx:DataGridColumn>
+			<mx:DataGridColumn width="120">
+				<mx:itemRenderer>
+					<mx:Component>
+						<mx:Button label="修改拾取人員" click="modifyPickupMember()">
+							<mx:Script>
+								<![CDATA[
+									import model.event.CommonEvent;
+									private function modifyPickupMember():void{
+										this.dispatchEvent(new CommonEvent(CommonEvent.MODIFY_PICKUP_MEMBER,data,true));
+									}
+								]]>
+							</mx:Script>
+						</mx:Button>
+					</mx:Component>
+				</mx:itemRenderer>
+			</mx:DataGridColumn>
+		</mx:columns>
+	</mx:DataGrid>
+		
+</mx:Canvas>

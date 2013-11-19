@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%" creationComplete="init()">
+	<mx:Script>
+		<![CDATA[
+			import model.event.CommonEvent;
+			import model.event.ItemResultEvent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.core.IFlexDisplayObject;
+			import mx.events.CloseEvent;
+			import mx.managers.PopUpManager;
+			import mx.utils.ObjectProxy;
+			
+			import proxy.ConnectionProxy;
+			[Bindable]
+			public static var memberList:ArrayCollection;
+			[Bindable]
+			private var memberStatus:ArrayCollection;
+			private var event_sn:String;
+			public function eventId(id:String):void{
+				event_sn = id;
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_RAID_ITEM_DETAIL_RESULT,getRaidItemDetailResult);
+				ConnectionProxy.getInstances().getRaidItemDetail(id);
+			}
+			private function init():void{
+				//增加修改事件監聽
+				myDatagrid.addEventListener(CommonEvent.MODIFY_DELETE_ITEM_EVENT,deleteEventHandler);
+				myDatagrid.addEventListener(CommonEvent.MODIFY_SAVE_ITEM_EVENT,saveEventHandler);
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.MEMBER_COMMON_LIST_EVENT,resultHandler);
+				ConnectionProxy.getInstances().getMemberList();
+			}
+			private function resultHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.MEMBER_COMMON_LIST_EVENT,resultHandler);
+				memberList = event.data as ArrayCollection;
+			}
+			private function getRaidItemDetailResult(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_RAID_ITEM_DETAIL_RESULT,getRaidItemDetailResult);
+				memberStatus = event.data as ArrayCollection;
+			}
+			
+			private function saveEventHandler(event:CommonEvent):void{
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.MODIFY_RAID_ITEM_DETAIL_RESULT,modifyResult);
+				ConnectionProxy.getInstances().modifyRaidItemDetail(event_sn,"modify",event.data.sn,event.data.id);
+			}
+			private function modifyResult(e:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.MODIFY_RAID_ITEM_DETAIL_RESULT,modifyResult);
+				Alert.show(e.data.toString());
+				this.dispatchEvent(new Event("modifySuccess",true));
+			}
+			private var selectedItem:Object;
+			private function deleteEventHandler(event:CommonEvent):void{
+				if(selectedItem!=event.data){
+					selectedItem = event.data;
+					Alert.okLabel="確定";  
+					Alert.cancelLabel="取消";  
+					Alert.show("你確定刪除此項物品紀錄嗎?","刪除確認",Alert.OK|Alert.CANCEL,this,ConfirmDelete,null,Alert.CANCEL); 
+				}
+			}
+			private function ConfirmDelete(evt:CloseEvent):void{  
+				if(evt.detail==Alert.OK){
+					var index:int = memberStatus.getItemIndex(selectedItem);
+					memberStatus.removeItemAt(index);
+					ConnectionProxy.getInstances().addEventListener(ItemResultEvent.MODIFY_RAID_ITEM_DETAIL_RESULT,modifyResult);
+					ConnectionProxy.getInstances().modifyRaidItemDetail(event_sn,"delete",selectedItem.sn);
+				} 
+			}
+			private function insertItemAdd():void{
+				if(insertItemNameAdd.text!= ''){
+					//先搜尋物品編號
+					ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_ITEM_NUMBER_RESULT,insertItemAddResult);
+					ConnectionProxy.getInstances().getItemNumber(insertItemNameAdd.text,hardLevel.selectedLabel);
+					insertItemNameAdd.enabled = false;
+				}
+			}
+			private function insertItemAddResult(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_ITEM_NUMBER_RESULT,insertItemAddResult);
+				if(event.data.toString() == ''){
+					Alert.show('物品並未新增成功!因為資料庫找不到這件物品資料!\n請確認您的物品名稱輸入正確!');
+				}else{
+					var obj:ObjectProxy = new ObjectProxy({
+						name:pickUpItemMember.selectedLabel,
+						id:pickUpItemMember.selectedItem.data,
+						item_id:event.data.toString(),
+						item_name:insertItemNameAdd.text
+					});
+					if(memberStatus!= null){
+						memberStatus.addItem(obj);
+					}
+					ConnectionProxy.getInstances().addEventListener(ItemResultEvent.MODIFY_RAID_ITEM_DETAIL_RESULT,modifyResult);
+					ConnectionProxy.getInstances().modifyRaidItemDetail(event_sn,"insert",
+						event.data.toString(),
+						pickUpItemMember.selectedItem.data,
+						insertItemNameAdd.text
+					);
+					
+				}
+				insertItemNameAdd.enabled=true;
+				insertItemNameAdd.text='';
+			}
+		]]>
+	</mx:Script>
+	<mx:VBox width="100%" height="100%">
+		<mx:HBox width="100%">
+			<mx:Label text="新增物品: "/>
+			<mx:TextInput width="120" id="insertItemNameAdd"/>
+			<mx:Label text="難度:"/>
+			<mx:ComboBox width="80" id="hardLevel">
+				<mx:dataProvider>
+					<mx:Array>
+						<mx:String>困難</mx:String>
+						<mx:String>普通</mx:String>
+					</mx:Array>
+				</mx:dataProvider>
+			</mx:ComboBox>
+			<mx:Label text="分配給："/>
+			<mx:ComboBox width="120" id="pickUpItemMember" dataProvider="{memberList}"/>
+			<mx:Button label="新增物品" click="insertItemAdd()"/>
+		</mx:HBox>
+		<mx:Label text="請點選拾取人員來改變拾取者，並按下右邊的儲存鈕後才會儲存該列物品的修改" styleName="titleLabel"/>
+		<mx:DataGrid width="100%" id="myDatagrid" dataProvider="{memberStatus}" height="100%" editable="true">
+			<mx:columns>
+				<mx:DataGridColumn headerText="拾取人員" dataField="name" editable="true">
+					<mx:itemEditor>
+						<mx:Component>
+							<mx:ComboBox dataProvider="{ModifyAttendRecord.memberList}" change="changeData()">
+								<mx:Script>
+									<![CDATA[
+										import model.event.CommonEvent;
+										override public function set data(value:Object):void{
+											super.data = value;
+											for(var i:int = 0;i<ModifyAttendRecord.memberList.length;i++){
+												if(ModifyAttendRecord.memberList[i]['label'] == value.name){
+													this.selectedIndex = i;
+												}
+											}
+										}
+										private function changeData():void{
+											data.id=ModifyAttendRecord.memberList[this.selectedIndex]['data']
+										}
+									]]>
+								</mx:Script>
+							</mx:ComboBox>
+						</mx:Component>
+					</mx:itemEditor>
+				</mx:DataGridColumn>
+				<mx:DataGridColumn headerText="物品名稱" dataField="item_name" editable="false"/>
+				<mx:DataGridColumn headerText="儲存改變" editable="false" width="80">
+					<mx:itemRenderer>
+						<mx:Component>
+							<mx:Button label="儲存改變" click="dispatchEvent(new CommonEvent(CommonEvent.MODIFY_SAVE_ITEM_EVENT,data,true))">
+								<mx:Script>
+									<![CDATA[
+										import model.event.CommonEvent;
+									]]>
+								</mx:Script>
+							</mx:Button>
+						</mx:Component>
+					</mx:itemRenderer>
+				</mx:DataGridColumn>
+				<mx:DataGridColumn headerText="刪除物品" editable="false" width="80">
+					<mx:itemRenderer>
+						<mx:Component>
+							<mx:Button label="刪除物品" click="dispatchEvent(new CommonEvent(CommonEvent.MODIFY_DELETE_ITEM_EVENT,data,true))">
+								<mx:Script>
+									<![CDATA[
+										import model.event.CommonEvent;
+									]]>
+								</mx:Script>
+							</mx:Button>
+						</mx:Component>
+					</mx:itemRenderer>
+				</mx:DataGridColumn>
+			</mx:columns>
+		</mx:DataGrid>
+	</mx:VBox>
+</mx:Canvas>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns:mx="http://www.adobe.com/2006/mxml" styleName="loginStyle" height="350">
+	<mx:ArrayCollection id="myLogs">
+		<mx:Object>
+			<mx:date>2011-07-25</mx:date><mx:content>管理員可新增及刪除其他會員的請假資料</mx:content>
+		</mx:Object>
+		<mx:Object>
+			<mx:date>2011-07-23</mx:date><mx:content>將會員管理整合入flash程式內並加強程式整體安全性、小bug修正</mx:content>
+		</mx:Object>
+		<mx:Object>
+			<mx:date>2011-07-22</mx:date><mx:content>新增管理者修改副本事件拾取物品內容功能</mx:content>
+		</mx:Object>
+		<mx:Object>
+			<mx:date>2011-07-20</mx:date><mx:content>調整程式架構、修正dataGrid的排序錯誤問題、小bug修正</mx:content>
+		</mx:Object>
+		<mx:Object>
+			<mx:date>2011-07-14</mx:date><mx:content>新增團隊資料時可新增物品功能</mx:content>
+		</mx:Object>
+		<mx:Object>
+			<mx:date>2011-07-10</mx:date><mx:content>增加全團隊出席率及出席狀況列表功能</mx:content>
+		</mx:Object>
+		<mx:Object>
+			<mx:date>2011-07-08</mx:date><mx:content>增加副本資料及出席狀況修改功能</mx:content>
+		</mx:Object>
+		<mx:Object>
+			<mx:date>2011-07-02</mx:date><mx:content>新增管理員上鎖願望清單功能</mx:content>
+		</mx:Object>
+		<mx:Object>
+			<mx:date>2011-06-29</mx:date><mx:content>新增火源之界普通及困難掉寶資料</mx:content>
+		</mx:Object>
+		<mx:Object>
+			<mx:date>2011-05-03</mx:date><mx:content>新增請假功能</mx:content>
+		</mx:Object>
+		<mx:Object>
+			<mx:date>2011-02-13</mx:date><mx:content>新增困難黑翼、暮光、四風的掉寶資料</mx:content>
+		</mx:Object>
+		<mx:Object>
+			<mx:date>2010-12-28</mx:date><mx:content>新增黑翼、暮光、四風普通掉寶資料</mx:content>
+		</mx:Object>
+		<mx:Object>
+			<mx:date>2010-11-15</mx:date><mx:content>雙天賦願望需求功能啟用</mx:content>
+		</mx:Object>
+		<mx:Object>
+			<mx:date>2010-10-08</mx:date><mx:content>裝備許願表beta版啟用</mx:content>
+		</mx:Object>
+	</mx:ArrayCollection>
+	<mx:Label width="100%" fontSize="15" fontWeight="bold" text="《修改歷程》"/>
+	<mx:DataGrid dataProvider="{myLogs}" width="100%" height="100%" showHeaders="false" selectedIndex="0" selectable="false">
+		<mx:columns>
+			<mx:DataGridColumn dataField="date" width="120"/>
+			<mx:DataGridColumn dataField="content"/>
+		</mx:columns>
+	</mx:DataGrid>
+</mx:VBox>
+

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="vertical" minWidth="955" minHeight="600"
+				>
+	<mx:Script>
+		<![CDATA[
+			private function init():void{
+				var aba:XML = new XML(content.text);
+				content.text = aba.toXMLString()
+			}
+		]]>
+	</mx:Script>
+	<mx:TextArea width="100%" id="content"/>
+	<mx:Button label="test" click="init()"/>
+	<mx:DateChooser/>
+</mx:Application>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:TitleWindow xmlns:mx="http://www.adobe.com/2006/mxml"
+				width="300" height="180" horizontalAlign="center" title="新增會員">
+	<mx:Script>
+		<![CDATA[
+			import model.event.CommonEvent;
+			private function submitData():void{
+				this.dispatchEvent(new CommonEvent("insertMemberOperator",{type:'insert',name:memberAccount.text,professional:memberProfessional.selectedLabel}));
+			}
+		]]>
+	</mx:Script>
+	<mx:HBox width="100%" verticalAlign="middle">
+		<mx:Label text="會員帳號："/>
+		<mx:TextInput id="memberAccount"/>
+	</mx:HBox>
+	<mx:HBox width="100%" verticalAlign="middle">
+		<mx:Label text="會員職業："/>
+		<mx:ComboBox id="memberProfessional">
+			<mx:dataProvider>
+				<mx:Array>
+					<mx:String>聖騎士</mx:String>
+					<mx:String>術士</mx:String>
+					<mx:String>牧師</mx:String>
+					<mx:String>戰士</mx:String>
+					<mx:String>獵人</mx:String>
+					<mx:String>薩滿</mx:String>
+					<mx:String>盜賊</mx:String>
+					<mx:String>法師</mx:String>
+					<mx:String>德魯伊</mx:String>
+					<mx:String>死亡騎士</mx:String>
+					<mx:String>武僧</mx:String>
+				</mx:Array>
+			</mx:dataProvider>
+		</mx:ComboBox>
+	</mx:HBox>
+	<mx:Label text="＊預設密碼皆為『 0000 』" width="100%" textAlign="right" color="#C43B6B"/>
+	<mx:Button label="送出" click="submitData()"/>
+	
+</mx:TitleWindow>

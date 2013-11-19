@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml"
+				xmlns:comp="comp.*"
+				width="100%" height="100%" backgroundColor="#777777" creationComplete="init()"
+				currentState="login" fontSize="12" layout="absolute"
+				preloader="comp.preload.CustomPreloader">
+	<mx:Style>
+		@namespace mx "http://www.adobe.com/2006/mxml";
+		TitleWindow
+		{
+			borderStyle: inset;
+			borderAlpha: 1.0;
+			cornerRadius: 2;
+			backgroundAlpha: 100;
+		}
+		Label{
+			fone-size:13 px;
+		}
+		.loginStyle{
+			backgroundAlpha:0.5;
+			backgroundColor:#FFFFFF;
+			cornerRadius:8;
+			dropShadowVisible:true;
+			paddingBottom:10;
+			paddingLeft:10;
+			paddingRight:10;
+			paddingTop:10;
+			verticalGap:0;
+		}
+		.titleLabel{
+			color:#777777;
+			fone-size:15 px;
+			font-weight: "bold";
+		}
+	</mx:Style>
+	<mx:Script>
+		<![CDATA[
+			import comp.ManagerStation;
+			import comp.MemberAttendStatus;
+			import comp.MemberPickupStatus;
+			import comp.MemberWishItem;
+			
+			import model.event.ItemResultEvent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.events.ListEvent;
+			import mx.events.ResizeEvent;
+			import mx.managers.PopUpManager;
+			import mx.resources.ResourceManager;
+			import mx.rpc.events.ResultEvent;
+			import mx.utils.ObjectProxy;
+			
+			import proxy.ConnectionProxy;
+			
+			[Bindable]
+			private var htmlContent:String;
+			[Bindable]
+			private var basePath:String = "http://www.callloot-system.com/system/xml/";//"http://www.asguild.com/dkp/xml/";//"http://www.final-dawn.net/xml/";//"http://127.0.0.1/callloot/xml/";//;
+			[Bindable]
+			private var memberInfo:Object;
+			
+			private function init():void{
+				ConnectionProxy.getInstances().path = basePath;
+				ConnectionProxy.getInstances().target = this;
+				serverName.text = Application.application.parameters["server_name"];
+				guildName.text = Application.application.parameters["guild_name"];
+				var tmp:SharedObject = SharedObject.getLocal("savedData");
+				if(tmp == null) {
+					tmp = new SharedObject();
+				}else{
+					login_id.text = tmp.data.name
+					password.text = tmp.data.password
+				}
+			}
+			private function modifyPassword():void{
+				if(String(memberInfo.password) == String(old_password.text)){
+					if(String(old_password.text) == new_password.text){
+						message2.text = "新舊密碼不得相同!";
+					}else if(new_password.text == new_password2.text){
+						memberInfo.password = new_password.text;
+						ConnectionProxy.getInstances().addEventListener(ItemResultEvent.COMMON_EVENT_RESULT,modifyPasswordhttpHandler);
+						ConnectionProxy.getInstances().commonEvent('modifyPassword.php',memberInfo);
+					}else{
+						message2.text = "您輸入的新密碼兩次內容並不相同";
+					}
+				}else{
+					message2.text = "您輸入的舊密碼錯誤";
+				}
+			}
+			private function modifyPasswordhttpHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.COMMON_EVENT_RESULT,modifyPasswordhttpHandler);
+				new_password.text = '';
+				new_password2.text = '';
+				old_password.text = ''
+				this.currentState = "";
+				Alert.show("您的密碼已修改成功!");
+				this.currentState = 'logged';
+			}
+			private function resultHandler(event:ResultEvent):void{
+				submitBtn.enabled = true;
+				if(event.result.login['result'] == "success"){
+					memberInfo.level = event.result.login.level;
+					memberInfo.id = event.result.login.id;
+					memberInfo.permit = event.result.login.permit;
+					memberInfo.token = event.result.login.token;
+					ConnectionProxy.getInstances().token = memberInfo.token;
+					this.currentState = 'logged';
+					if(memberInfo.level==1){
+						var status:ManagerStation = new ManagerStation();
+						status.label="會員管理";
+						totalItems.addChild(status);
+					}
+					if(memberInfo.password == '0000'){
+						this.currentState = "modify";
+						Alert.show("為了您的帳號安全性考量，請立即更改你的密碼!");
+					}
+				}else{
+					message.text = "帳號密碼錯誤!!";
+				}
+			}
+			
+			private function login():void{
+				if(login_id.text!="" && password.text!=""){
+					var tmp:SharedObject = SharedObject.getLocal("savedData");
+					message.text = "";
+					memberInfo = new Object();
+					memberInfo.name = login_id.text;
+					memberInfo.password = password.text;
+					memberInfo.guild_sn = Application.application.parameters["guild_sn"];
+					loginProcess.send(memberInfo);
+					if(remember.selected == true){
+						tmp.setProperty("name",login_id.text);
+						tmp.setProperty("password",password.text );
+					}else{
+						tmp.setProperty("name",'');
+						tmp.setProperty("password",'' );
+					}
+					submitBtn.enabled = false;
+					message.text = "驗證帳密中...";
+				}
+			}
+			
+			
+		]]>
+	</mx:Script>
+	<mx:HTTPService id="loginProcess" method="POST" result="resultHandler(event)" url="{basePath+'login.php'}"/>
+	
+	<mx:states>
+		<mx:State name="login">
+			<mx:AddChild>
+				<mx:Canvas width="100%" height="100%">
+					<mx:VBox id="loginPrmot" top="30" width="350" height="200" borderStyle="solid"
+							 horizontalAlign="center" horizontalCenter="0" styleName="loginStyle"
+							 verticalAlign="middle" verticalGap="10" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+						<mx:HBox width="100%" horizontalGap="0">
+							<mx:Label fontSize="15" fontWeight="bold" id="serverName"/>
+							<mx:Label width="11" fontSize="15" fontWeight="bold" text="-"/>
+							<mx:Label fontSize="15" fontWeight="bold" id="guildName"/>
+							<mx:Label width="100%" fontSize="15" fontWeight="bold" text="會員登入"/>
+						</mx:HBox>
+						<mx:HBox width="90%"><mx:Label text="請輸入登入帳密："/>
+						</mx:HBox>
+						<mx:HBox width="90%">
+							<mx:Label text="帳號"/>
+							<mx:TextInput width="100%" id="login_id" maxChars="20"/>
+						</mx:HBox>
+						<mx:HBox width="90%">
+							<mx:Label text="密碼"/>
+							<mx:TextInput width="100%" id="password" displayAsPassword="true" maxChars="20"/>
+						</mx:HBox>
+						<mx:HBox width="90%" horizontalAlign="right">
+							<mx:Label width="100%" id="message" color="#EDD1D1" textAlign="center"/>
+							<mx:CheckBox label="記憶密碼" id="remember" selected="true"/>
+							<mx:Button label="確定" id="submitBtn" click="login()"/>
+						</mx:HBox>
+					</mx:VBox>
+				</mx:Canvas>
+			</mx:AddChild>
+		</mx:State>
+		<mx:State name="modify">
+			<mx:AddChild>
+				<mx:VBox styleName="popupWindowStyle" width="350" height="220" horizontalAlign="center" verticalAlign="middle" horizontalCenter="0" verticalCenter="0" verticalGap="10" backgroundColor="#FFFFFF">
+					<mx:HBox width="90%"><mx:Label text="請輸入登入帳密："/></mx:HBox>
+					<mx:HBox width="90%">
+						<mx:Label text="舊密碼"/>
+						<mx:TextInput width="100%" id="old_password" displayAsPassword="true" color="#4E4E4E" maxChars="20"/>
+					</mx:HBox>
+					<mx:HBox width="90%">
+						<mx:Label text="新密碼"/>
+						<mx:TextInput width="100%" id="new_password" displayAsPassword="true" color="#4E4E4E" maxChars="20"/>
+					</mx:HBox>
+					<mx:HBox width="90%">
+						<mx:Label text="確認密碼"/>
+						<mx:TextInput width="100%" id="new_password2" displayAsPassword="true" color="#4E4E4E" maxChars="20"/>
+					</mx:HBox>
+					<mx:HBox width="90%" horizontalAlign="right">
+						<mx:Label width="100%" id="message2" color="#FF0000" textAlign="center"/>
+						<mx:Button label="確定" click="modifyPassword()" color="#4E4E4E"/>
+						<mx:Button label="取消" click="{this.currentState=''}" color="#4E4E4E"/>
+					</mx:HBox>
+				</mx:VBox>
+			</mx:AddChild>
+		</mx:State>
+		<mx:State name="logged">
+			<mx:AddChild>
+				<mx:TabNavigator x="0" y="0" width="100%" height="100%" id="totalItems" visible="true">
+					<comp:WishItemList label="裝備許願列表" width="100%" height="100%"/>
+					<comp:MemberWishListEditor id="memberAreaComp" label="填寫裝備許願表" memberInfo="{memberInfo}"></comp:MemberWishListEditor>
+					<comp:Calender id="calenderComp" label="會員請假系統" memberInfo="{memberInfo}"></comp:Calender>
+					<comp:AttendAndMaterialsManagement label="副本出團相關紀錄" memberInfo="{memberInfo}"/>
+					<comp:MemberStatusList label="副本出團人員狀況" basePath="{basePath}"/>
+				</mx:TabNavigator>
+			</mx:AddChild>
+		</mx:State>
+	</mx:states>
+</mx:Application>

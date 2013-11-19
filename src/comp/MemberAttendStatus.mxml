@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml">
+	<mx:Script>
+		<![CDATA[
+			import model.event.ItemResultEvent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.DateField;
+			import mx.utils.ObjectProxy;
+			
+			import proxy.ConnectionProxy;
+			private var _member_id:String;
+			private var searchPersonData:ArrayCollection;
+			public function set member_id(str:String):void{
+				_member_id = str;
+				sendSearch();
+			}
+			private function resetDate(Unit:DateField):void {
+				Unit.dayNames=['日','一','二','三','四','五','六'] ;
+				Unit.monthNames=['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+				Unit.yearSymbol="年";
+				Unit.yearNavigationEnabled=true;
+			}
+			public function sendSearch():void{
+				if(_member_id!=null){
+					returnValue();
+					ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_MEMBER_ANALYSIS_RESULT,getRaidDataListHandler);
+					if(q1_group.selection.value.toString() == '1'){
+						ConnectionProxy.getInstances().getMemberAnalysis(_member_id,'1','','');
+					}else{
+						ConnectionProxy.getInstances().getMemberAnalysis(_member_id,q1_group.selection.value.toString(),fromDate.text,toDate.text);
+					}
+				}
+			}
+			private function returnValue():void{
+				onTime.text = '0次';
+				lateTime.text = '0次';
+				leaveTime.text = '0次';
+				lateLeaveTime.text = '0次';
+				noLeaveTime.text = '0次';
+			}
+			private function getRaidDataListHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_MEMBER_ANALYSIS_RESULT,getRaidDataListHandler);
+
+				if(event.data.personal.item as ObjectProxy){
+					searchPersonData = new ArrayCollection();
+					searchPersonData.addItem(event.data.personal.item);
+				}else{
+					searchPersonData = event.data.personal.item;
+				}
+				var totalPerson:int = 0;
+				for(var i:String in searchPersonData){
+					totalPerson += int(searchPersonData[i]['num']);
+				}
+				returnValue();
+				for(i in searchPersonData){
+					switch(searchPersonData[i]['type']){
+						case '準時出席':
+							onTime.text = searchPersonData[i]['num']+'次';
+							break;
+						case '晚到':
+							lateTime.text = searchPersonData[i]['num']+'次';
+							break;
+						case '請假':
+							leaveTime.text = searchPersonData[i]['num']+'次';
+							break;
+						case '補假':
+							lateLeaveTime.text = searchPersonData[i]['num']+'次';
+							break;
+						case '未請假缺席':
+							noLeaveTime.text = searchPersonData[i]['num']+'次';
+							break;
+						case '出席率':
+							attendRate.text = searchPersonData[i]['num']+'%';
+							break;
+						case '加權出席率':
+							s_attendRate.text = searchPersonData[i]['num']+'%';
+								break;
+					}
+				}
+			}
+		]]>
+	</mx:Script>
+	<mx:VBox width="100%" height="100%">
+		<mx:RadioButtonGroup id="q1_group" enabled="false" />
+		<mx:HBox x="10" y="0" width="100%" horizontalGap="0" verticalAlign="middle">
+			<mx:RadioButton label="所有資料" group="{q1_group}" selected="true" value="1"/>
+			<mx:RadioButton label="從" group="{q1_group}" value="2"/>
+			<mx:DateField id="fromDate" formatString="YYYY/MM/DD"
+						  initialize="resetDate(fromDate)" selectedDate="{new Date()}"/>
+			<mx:Label text="至"/>
+			<mx:DateField id="toDate" formatString="YYYY/MM/DD"
+						  initialize="resetDate(toDate)" selectedDate="{new Date()}"/>
+			<mx:Label text="的資料"/>
+			<mx:Button id="mySearchBytton" label="搜尋" click="sendSearch()"/>
+		</mx:HBox>
+		<mx:HBox width="100%">
+			<mx:VBox width="100%" height="100%" verticalGap="0">
+				<mx:Label fontWeight="bold" text="《出席狀況分布》"/>
+				<mx:HBox width="100%">
+					<mx:Label width="12.5%" fontWeight="bold" text="項目" textAlign="center"/>
+					<mx:Label width="12.5%" color="#000000" text="準時出席："/>
+					<mx:Label width="12.5%" color="#5200A0" text="晚到："/>
+					<mx:Label width="12.5%" color="#0200A0" text="請假："/>
+					<mx:Label width="12.5%" color="#DC7100" text="補假："/>
+					<mx:Label width="12.5%" color="#FF0000" text="缺席："/>
+					<mx:Label width="12.5%" text="出席率:"/>
+					<mx:Label width="12.5%" text="加權後:"/>
+				</mx:HBox>
+				<mx:HRule width="100%"/>
+				<mx:HBox width="100%">
+					<mx:Label width="12.5%" fontWeight="bold" text="次數" textAlign="center"/>
+					<mx:Label width="12.5%" id="onTime" color="#000000" text="0次" textAlign="center"/>
+					<mx:Label width="12.5%" id="lateTime" color="#5200A0" text="0次" textAlign="center"/>
+					<mx:Label width="12.5%" id="leaveTime" color="#0200A0" text="0次" textAlign="center"/>
+					<mx:Label width="12.5%" id="lateLeaveTime" color="#DC7100" text="0次"
+							  textAlign="center"/>
+					<mx:Label width="12.5%" id="noLeaveTime" color="#FF0000" text="0次"
+							  textAlign="center"/>
+					<mx:Label width="12.5%" id="attendRate" text="0％" textAlign="center"/>
+					<mx:Label width="12.5%" id="s_attendRate" text="0％" textAlign="center"/>
+				</mx:HBox>
+				<mx:HRule width="100%"/>
+			</mx:VBox>
+		</mx:HBox>
+	</mx:VBox>
+	
+</mx:Canvas>

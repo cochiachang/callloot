@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:TitleWindow xmlns:mx="http://www.adobe.com/2006/mxml" showCloseButton="true" close="closeHandler()" layout="absolute" width="280" height="350">
+	<mx:Script>
+		<![CDATA[
+			import mx.managers.PopUpManager;
+			[Bindable]
+			public var itemtipMessage:String;
+			[Bindable]
+			public var iconPic:String = "inv_enchant_prismaticsphere";
+			private function closeHandler():void{
+				this.visible = false;
+			}
+		]]>
+	</mx:Script>
+	<mx:states>
+		<mx:State name="loading">
+			<mx:AddChild position="lastChild">
+				<mx:Label horizontalCenter="0" text="下載中..." verticalCenter="0"/>
+			</mx:AddChild>
+		</mx:State>
+		<mx:State name="complete">
+			<mx:AddChild>
+				<mx:Text width="95%" htmlText="{itemtipMessage}" height="95%" horizontalCenter="0" verticalCenter="0" x="4" y="42"/>
+			</mx:AddChild>
+		</mx:State>
+	</mx:states>
+		
+</mx:TitleWindow>

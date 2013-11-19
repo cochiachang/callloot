@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%" creationComplete="getInfo()">
+	<mx:Script>
+		<![CDATA[
+			import model.event.ItemResultEvent;
+			
+			import proxy.ConnectionProxy;
+			public function getInfo(type:String = '1',from:String = '',to:String = ''):void{
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_ATTEND_STATUS_LIST_RESULT,memberAttendStatusListHandler);
+				ConnectionProxy.getInstances().memberAttendStatusList(type,from,to);
+			}
+			private function memberAttendStatusListHandler(event:ItemResultEvent):void{
+				myDataGrid.dataProvider = event.data.member;
+			}
+			private function sortDate(obj1:Object, obj2:Object):int
+			{
+				var d1:Number = Number(String(obj1.rate).substring(0,String(obj1.rate).length-1));
+				var d2:Number = Number(String(obj2.rate).substring(0,String(obj2.rate).length-1));
+
+				if(d1 < d2) {
+					return -1;
+				} else if(d1 == d2) {
+					return 0;
+				}
+				return 1;
+			}
+			private function sortDate2(obj1:Object, obj2:Object):int
+			{
+				var d1:Number = Number(String(obj1.rate2).substring(0,String(obj1.rate2).length-1));
+				var d2:Number = Number(String(obj2.rate2).substring(0,String(obj2.rate2).length-1));
+				
+				if(d1 < d2) {
+					return -1;
+				} else if(d1 == d2) {
+					return 0;
+				}
+				return 1;
+			}
+		]]>
+	</mx:Script>
+	<mx:Label width="100%"
+			  text="[註] 加權出席率計算公式：準時出席+1、晚到+0.5、請假+0、補假-1、未請假缺席-2，再除以總應出席次數。"/>
+	<mx:DataGrid width="100%" height="100%" id="myDataGrid">
+		<mx:columns>
+			<mx:DataGridColumn dataField="name" headerText="名字"/>
+			<mx:DataGridColumn dataField="onTime" headerText="準時出席"/>
+			<mx:DataGridColumn dataField="lateTime" headerText="晚到" color="0x5200A0" sortCompareFunction="sortDate"/>
+			<mx:DataGridColumn dataField="onLeave" headerText="請假" color="0x0200A0" sortCompareFunction="sortDate"/>
+			<mx:DataGridColumn dataField="lateLeave" headerText="補假" color="0xDC7100" sortCompareFunction="sortDate"/>
+			<mx:DataGridColumn dataField="noLeave" headerText="未請假缺席" color="0xFF0000" sortCompareFunction="sortDate"/>
+			<mx:DataGridColumn dataField="rate" headerText="出席率(包含準時及晚到)" textAlign="right" color="#003300" sortCompareFunction="sortDate"/>
+			<mx:DataGridColumn dataField="rate2" headerText="加權出席率" textAlign="right" color="#003300" sortCompareFunction="sortDate2"/>
+		</mx:columns>
+	</mx:DataGrid>
+	
+</mx:VBox>

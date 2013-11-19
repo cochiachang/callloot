@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%" creationComplete="init()">
+	<mx:Script>
+		<![CDATA[
+			import comp.pupUpWindows.MemberInsert;
+			
+			import model.event.CommonEvent;
+			import model.event.ItemResultEvent;
+			
+			import mx.controls.Alert;
+			import mx.core.IFlexDisplayObject;
+			import mx.events.CloseEvent;
+			import mx.managers.PopUpManager;
+			
+			import proxy.ConnectionProxy;
+			public var basePath:String;
+			private function init():void{
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_ALL_MEMBER_LIST_RESULT,getAllMemberInfoHandler);
+				ConnectionProxy.getInstances().getAllMemberInfo();
+				memberDataGrid.addEventListener('modifyMemberData',modifyMemberData);
+				memberDataGrid.addEventListener('deleteMemberData',deleteMemberData);
+				memberDataGrid.addEventListener('resetPasswordData',resetPasswordData);
+			}
+			private function getAllMemberInfoHandler(event:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.GET_ALL_MEMBER_LIST_RESULT,getAllMemberInfoHandler);
+				memberDataGrid.dataProvider = event.data
+			}
+			private function resetPasswordData(event:CommonEvent):void{
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.MEMBER_MANAGER_RESULT,modifyResult);
+				ConnectionProxy.getInstances().memberManager({type:'password',id:event.data.id});
+			}
+			private function inertMember():void{
+				var insert:MemberInsert = new MemberInsert();
+				insert.showCloseButton = true;
+				insert.addEventListener(CloseEvent.CLOSE,function (e:CloseEvent):void{
+					PopUpManager.removePopUp(e.target as IFlexDisplayObject);
+				});
+				insert.addEventListener("insertMemberOperator",insertMemberOperator);
+				PopUpManager.addPopUp(insert,this);
+				PopUpManager.centerPopUp(insert);
+			}
+			private function insertMemberOperator(e:CommonEvent):void{
+				(e.target).removeEventListener("insertMemberOperator",insertMemberOperator);
+				PopUpManager.removePopUp(e.target as IFlexDisplayObject);
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.MEMBER_MANAGER_RESULT,modifyResult);
+				ConnectionProxy.getInstances().memberManager(e.data);
+			}
+			private function modifyMemberData(event:CommonEvent):void{
+				event.data.isModify = !event.data.isModify;
+				if(!event.data.isModify){
+					var obj:Object = {type:'modify',id:event.data.id,level:event.data.level,
+						name:event.data.name,professional:event.data.professional}
+					ConnectionProxy.getInstances().addEventListener(ItemResultEvent.MEMBER_MANAGER_RESULT,modifyResult);
+					ConnectionProxy.getInstances().memberManager(obj);
+				}
+			}
+			private var selectedItem:Object;
+			private function deleteMemberData(event:CommonEvent):void{
+				if(selectedItem!=event.data){
+					selectedItem = event.data;
+					Alert.okLabel="確定";  
+					Alert.cancelLabel="取消";  
+					Alert.show("你確定刪除此會員嗎?刪除的會員無法回復!","刪除確認",Alert.OK|Alert.CANCEL,this,ConfirmDelete,null,Alert.CANCEL); 
+				}
+			}
+			private function ConfirmDelete(evt:CloseEvent):void{  
+				if(evt.detail==Alert.OK){
+					var index:int = memberDataGrid.dataProvider.getItemIndex(selectedItem);
+					memberDataGrid.dataProvider.removeItemAt(index);
+					var obj:Object = {type:'delete',id:selectedItem.id}
+					ConnectionProxy.getInstances().addEventListener(ItemResultEvent.MEMBER_MANAGER_RESULT,modifyResult);
+					ConnectionProxy.getInstances().memberManager(obj);
+				} 
+			}
+			private function modifyResult(e:ItemResultEvent):void{
+				ConnectionProxy.getInstances().removeEventListener(ItemResultEvent.MEMBER_MANAGER_RESULT,modifyResult);
+				Alert.show(e.data.toString());
+				ConnectionProxy.getInstances().addEventListener(ItemResultEvent.GET_ALL_MEMBER_LIST_RESULT,getAllMemberInfoHandler);
+				ConnectionProxy.getInstances().getAllMemberInfo();
+			}
+			public function memberLevel(obj1:Object, obj2:Object):int{
+				var d1:Number = Number(obj1.level);
+				var d2:Number = Number(obj2.level);
+				
+				if(d1 < d2) {
+					return -1;
+				} else if(d1 == d2) {
+					return 0;
+				}
+				return 1;
+			}
+		]]>
+	</mx:Script>
+	<mx:VBox x="0" y="0" width="100%" height="100%">
+		<mx:HBox width="100%" horizontalAlign="right">
+			<mx:Button label="新增會員" click="inertMember()"/>
+		</mx:HBox>
+		<mx:DataGrid width="100%" height="100%" id="memberDataGrid">
+			<mx:columns>
+				<mx:DataGridColumn dataField="name" headerText="角色名稱(此為登入帳號，請勿隨意更動)">
+					<mx:itemRenderer>
+						<mx:Component>
+							<mx:Canvas currentState="{(data.isModify) ? 'isModify' : 'noModify'}" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+								<mx:states>
+									<mx:State name="noModify">
+										<mx:AddChild>
+											<mx:Label text="{data.name}" width="100%"/>
+										</mx:AddChild>
+									</mx:State>
+									<mx:State name="isModify" exitState="{data.name=myBox.text}">
+										<mx:AddChild>
+											<mx:TextInput id="myBox" width="100%" text="{data.name}"/>
+										</mx:AddChild>
+									</mx:State>
+								</mx:states>
+							</mx:Canvas>
+						</mx:Component>
+					</mx:itemRenderer>
+				</mx:DataGridColumn>
+				<mx:DataGridColumn dataField="professional" headerText="職業" width="50">
+					<mx:itemRenderer>
+						<mx:Component>
+							<mx:Canvas currentState="{(data.isModify) ? 'isModify' : 'noModify'}" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+								<mx:Script>
+									<![CDATA[
+										[Bindable]
+										private var professional:Array = ["聖騎士","術士","牧師","戰士","獵人","薩滿","盜賊","法師","德魯伊","死亡騎士","武僧"];
+										private function enterState():void{
+											for(var i:int=0;i<professional.length;i++){
+												if(professional[i] == data.professional){
+													myBox.selectedIndex = i;
+													break;
+												}
+											}
+										}
+									]]>
+								</mx:Script>
+								<mx:states>
+									<mx:State name="noModify">
+										<mx:AddChild>
+											<mx:Label text="{data.professional}" width="100%"/>
+										</mx:AddChild>
+									</mx:State>
+									<mx:State name="isModify" enterState="enterState()" exitState="{data.professional=myBox.selectedLabel}">
+										<mx:AddChild>
+											<mx:ComboBox id="myBox" width="100%" dataProvider="{professional}"/>
+										</mx:AddChild>
+									</mx:State>
+								</mx:states>
+							</mx:Canvas>
+						</mx:Component>
+					</mx:itemRenderer>
+				</mx:DataGridColumn>
+				<mx:DataGridColumn headerText="會員等級" sortCompareFunction="memberLevel" width="50">
+					<mx:itemRenderer>
+						<mx:Component>
+							<mx:Canvas currentState="{(data.isModify) ? 'isModify' : 'noModify'}" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+								<mx:Script>
+									<![CDATA[
+										[Bindable]
+										private var level:Array = ["副本會員","管理員","非副本會員"];
+									]]>
+								</mx:Script>
+								<mx:states>
+									<mx:State name="noModify">
+										<mx:AddChild>
+											<mx:Label text="{level[data.level]}" width="100%"/>
+										</mx:AddChild>
+									</mx:State>
+									<mx:State name="isModify" enterState="{myBox.selectedIndex = data.level}" exitState="{data.level=myBox.selectedIndex}">
+										<mx:AddChild>
+											<mx:ComboBox id="myBox" width="100%" dataProvider="{level}"/>
+										</mx:AddChild>
+									</mx:State>
+								</mx:states>
+							</mx:Canvas>
+						</mx:Component>
+					</mx:itemRenderer>
+				</mx:DataGridColumn>
+				<mx:DataGridColumn dataField="id" headerText="修改" width="30">
+					<mx:itemRenderer>
+						<mx:Component>
+							<mx:HBox currentState="{(data.isModify) ? 'isModify' : 'noModify'}" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+								<mx:Script>
+									<![CDATA[
+										import model.event.CommonEvent;
+										private function onclick():void{
+											this.dispatchEvent(new CommonEvent('modifyMemberData',this.data,true));
+										}
+									]]>
+								</mx:Script>
+								<mx:states>
+									<mx:State name="isModify">
+										<mx:AddChild>
+											<mx:Button label="儲存" click="onclick()" width="50%"/>
+										</mx:AddChild>
+										<mx:AddChild>
+											<mx:Button label="取消" click="{data.isModify = false}" width="50%"/>
+										</mx:AddChild>
+									</mx:State>
+									<mx:State name="noModify">
+										<mx:AddChild>
+											<mx:Button label="修改資料" click="onclick()" width="100%"/>
+										</mx:AddChild>
+									</mx:State>
+								</mx:states>
+							</mx:HBox>
+						</mx:Component>
+					</mx:itemRenderer>
+				</mx:DataGridColumn>
+				<mx:DataGridColumn dataField="id" headerText="重設密碼" width="30">
+					<mx:itemRenderer>
+						<mx:Component>
+							<mx:Button label="重設密碼" click="onclick()">
+								<mx:Script>
+									<![CDATA[
+										import model.event.CommonEvent;
+										private function onclick():void{
+											this.dispatchEvent(new CommonEvent('resetPasswordData',this.data,true));
+										}
+									]]>
+								</mx:Script>
+							</mx:Button>
+						</mx:Component>
+					</mx:itemRenderer>
+				</mx:DataGridColumn>
+				<mx:DataGridColumn dataField="id" headerText="刪除" width="30">
+					<mx:itemRenderer>
+						<mx:Component>
+							<mx:Button label="刪除會員" click="onclick()">
+								<mx:Script>
+									<![CDATA[
+										import model.event.CommonEvent;
+										private function onclick():void{
+											this.dispatchEvent(new CommonEvent('deleteMemberData',this.data,true));
+										}
+									]]>
+								</mx:Script>
+							</mx:Button>
+						</mx:Component>
+					</mx:itemRenderer>
+				</mx:DataGridColumn>
+			</mx:columns>
+		</mx:DataGrid>
+	</mx:VBox>
+</mx:Canvas>
